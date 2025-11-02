@@ -44,8 +44,10 @@ from auth import init_auth_file
 init_auth_file()
 
 # Initialize device metadata file
-from device_metadata import init_metadata_file
+from device_metadata import init_metadata_file, load_metadata
 init_metadata_file()
+# Pre-load metadata at startup for immediate availability
+load_metadata(use_cache=False)  # Load fresh at startup
 
 # Check and fix encryption key permissions
 from encryption import check_key_permissions

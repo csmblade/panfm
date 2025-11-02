@@ -448,6 +448,10 @@ def register_routes(app, csrf, limiter):
             success = update_device_metadata(mac, name=name, comment=comment, tags=tags)
             
             if success:
+                # Force reload cache to ensure latest data
+                from device_metadata import reload_metadata_cache
+                reload_metadata_cache()
+                
                 # Return updated metadata
                 updated_metadata = get_device_metadata(mac)
                 return jsonify({

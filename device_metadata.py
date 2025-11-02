@@ -9,6 +9,10 @@ from config import METADATA_FILE
 from encryption import encrypt_dict, decrypt_dict
 from logger import debug, info, warning, error, exception
 
+# Global cache for metadata (loaded at startup, updated on changes)
+_metadata_cache = None
+_cache_loaded = False
+
 
 def init_metadata_file():
     """
@@ -42,15 +46,26 @@ def init_metadata_file():
         return True
 
 
-def load_metadata():
+def load_metadata(use_cache=True):
     """
     Load and decrypt device metadata from JSON file.
+    Uses global cache if available and use_cache=True to avoid repeated file I/O.
+    
+    Args:
+        use_cache: If True, returns cached metadata if available. If False, forces reload from disk.
     
     Returns:
         dict: Metadata dictionary keyed by MAC address (normalized to lowercase)
               Returns empty dict on error
     """
-    debug("Loading device metadata")
+    global _metadata_cache, _cache_loaded
+    
+    # Return cached data if available and cache is enabled
+    if use_cache and _cache_loaded and _metadata_cache is not None:
+        debug("Returning cached device metadata")
+        return _metadata_cache.copy()
+    
+    debug("Loading device metadata from disk")
     try:
         # Check if file exists
         if not os.path.exists(METADATA_FILE):
@@ -79,6 +94,10 @@ def load_metadata():
                 normalized_mac = mac.lower()
                 normalized_data[normalized_mac] = metadata
             
+            # Update global cache
+            _metadata_cache = normalized_data.copy()
+            _cache_loaded = True
+            
             debug(f"Loaded metadata for {len(normalized_data)} devices")
             return normalized_data
         except Exception as decrypt_error:
@@ -101,6 +120,11 @@ def load_metadata():
                 for mac, metadata in data.items():
                     normalized_mac = mac.lower()
                     normalized_data[normalized_mac] = metadata
+                
+                # Update global cache
+                _metadata_cache = normalized_data.copy()
+                _cache_loaded = True
+                
                 return normalized_data
             else:
                 # Unknown format
@@ -120,6 +144,7 @@ def save_metadata(metadata_dict):
     """
     Encrypt and save device metadata to JSON file.
     MAC addresses are normalized to lowercase before saving.
+    Updates global cache after successful save.
     
     Args:
         metadata_dict (dict): Metadata dictionary keyed by MAC address
@@ -127,6 +152,8 @@ def save_metadata(metadata_dict):
     Returns:
         bool: True on success, False on error
     """
+    global _metadata_cache, _cache_loaded
+    
     debug("Saving device metadata")
     try:
         # Normalize MAC addresses to lowercase
@@ -139,9 +166,15 @@ def save_metadata(metadata_dict):
         encrypted_data = encrypt_dict(normalized_dict)
         with open(METADATA_FILE, 'w') as f:
             json.dump(encrypted_data, f, indent=2)
+            f.flush()  # Ensure data is written to disk
+            os.fsync(f.fileno())  # Force OS to write to disk
         
         # Set file permissions to 600
         os.chmod(METADATA_FILE, 0o600)
+        
+        # Update global cache
+        _metadata_cache = normalized_dict.copy()
+        _cache_loaded = True
         
         debug(f"Successfully saved metadata for {len(normalized_dict)} devices")
         return True
@@ -241,12 +274,13 @@ def delete_device_metadata(mac_address):
 def get_all_tags():
     """
     Get a list of all unique tags across all devices.
+    Uses cached metadata if available.
     
     Returns:
         list: Sorted list of unique tag strings
     """
     debug("Getting all unique tags")
-    metadata = load_metadata()
+    metadata = load_metadata(use_cache=True)  # Use cache for performance
     all_tags = set()
     
     for mac, device_meta in metadata.items():
@@ -256,4 +290,16 @@ def get_all_tags():
     unique_tags = sorted(list(all_tags))
     debug(f"Found {len(unique_tags)} unique tags")
     return unique_tags
+
+def reload_metadata_cache():
+    """
+    Force reload metadata from disk, updating the global cache.
+    Call this when you know metadata has been modified externally.
+    
+    Returns:
+        dict: Reloaded metadata dictionary
+    """
+    global _cache_loaded
+    _cache_loaded = False  # Force reload
+    return load_metadata(use_cache=False)
 
