@@ -626,6 +626,12 @@ def get_connected_devices(firewall_config):
         dhcp_hostnames = get_dhcp_leases(firewall_config)
         debug(f"Retrieved {len(dhcp_hostnames)} DHCP hostname mappings")
 
+        # Load device metadata for enrichment
+        debug("Loading device metadata for enrichment")
+        from device_metadata import load_metadata
+        device_metadata = load_metadata()
+        debug(f"Loaded metadata for {len(device_metadata)} devices")
+
         # Query for ARP table entries
         params = {
             'type': 'op',
@@ -685,8 +691,11 @@ def get_connected_devices(firewall_config):
                 if hostname != '-':
                     debug(f"Matched hostname '{hostname}' for IP {ip_address}")
 
+                # Store original hostname before metadata merge
+                original_hostname = hostname
+
                 device_entry = {
-                    'hostname': hostname,  # From DHCP leases if available
+                    'hostname': hostname,  # From DHCP leases if available (may be overridden by custom name)
                     'ip': ip_address,
                     'mac': mac_address,
                     'vlan': '-',  # Will be extracted from interface if available
@@ -697,7 +706,11 @@ def get_connected_devices(firewall_config):
                     'zone': zone,  # Security zone
                     'vendor': None,  # Will be looked up from vendor database
                     'is_virtual': False,  # Will be determined by MAC analysis
-                    'virtual_type': None  # Type of virtual MAC if detected
+                    'virtual_type': None,  # Type of virtual MAC if detected
+                    'original_hostname': original_hostname,  # Always preserve original hostname
+                    'custom_name': None,  # Will be set from metadata if available
+                    'comment': None,  # Will be set from metadata if available
+                    'tags': []  # Will be set from metadata if available
                 }
 
                 # Try to extract VLAN from interface name (e.g., "ethernet1/1.100" -> VLAN 100)
@@ -720,6 +733,25 @@ def get_connected_devices(firewall_config):
                 device_entry['is_virtual'] = virtual_info['is_virtual']
                 device_entry['virtual_type'] = virtual_info['reason']
                 device_entry['is_randomized'] = virtual_info.get('is_randomized', False)
+
+                # Merge device metadata if available (normalize MAC to lowercase for lookup)
+                normalized_mac = mac_address.lower()
+                if normalized_mac in device_metadata:
+                    meta = device_metadata[normalized_mac]
+                    debug(f"Found metadata for MAC {normalized_mac}")
+                    
+                    # Set custom name if available (display prominently, hostname as subtitle)
+                    if 'name' in meta and meta['name']:
+                        device_entry['custom_name'] = meta['name']
+                        # Keep original hostname in device_entry['hostname'] for subtitle display
+                    
+                    # Set comment if available
+                    if 'comment' in meta and meta['comment']:
+                        device_entry['comment'] = meta['comment']
+                    
+                    # Set tags if available
+                    if 'tags' in meta and meta['tags']:
+                        device_entry['tags'] = meta['tags']
 
                 devices.append(device_entry)
 

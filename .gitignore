@@ -47,6 +47,7 @@ Thumbs.db
 devices.json
 settings.json
 auth.json
+device_metadata.json
 debug.log
 debug.log.*
 security.log

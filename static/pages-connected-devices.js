@@ -15,12 +15,51 @@ let allConnectedDevices = [];
 let connectedDevicesMetadata = {};
 let connectedDevicesSortBy = 'age'; // Default sort by age
 let connectedDevicesSortDesc = false; // Default ascending (lowest to highest)
+let deviceMetadataCache = {}; // Cache metadata keyed by MAC address (normalized lowercase)
+let expandedRows = new Set(); // Track which rows are expanded for comments
+
+async function loadDeviceMetadata() {
+    console.log('Loading device metadata...');
+    try {
+        const response = await fetch('/api/device-metadata');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.metadata) {
+            // Normalize MAC addresses to lowercase for consistent lookup
+            deviceMetadataCache = {};
+            for (const [mac, metadata] of Object.entries(data.metadata)) {
+                deviceMetadataCache[mac.toLowerCase()] = metadata;
+            }
+            console.log(`Loaded metadata for ${Object.keys(deviceMetadataCache).length} devices`);
+        } else {
+            console.warn('Failed to load device metadata:', data.message);
+            deviceMetadataCache = {};
+        }
+    } catch (error) {
+        console.error('Error loading device metadata:', error);
+        deviceMetadataCache = {};
+    }
+}
 
 async function loadConnectedDevices() {
     console.log('Loading connected devices...');
     try {
-        const response = await fetch('/api/connected-devices');
-        const data = await response.json();
+        // Load metadata first (in parallel with devices)
+        const [devicesResponse, metadataResponse] = await Promise.all([
+            fetch('/api/connected-devices'),
+            fetch('/api/device-metadata')
+        ]);
+
+        const data = await devicesResponse.json();
+        const metadataData = await metadataResponse.json();
+
+        // Cache metadata
+        if (metadataData.status === 'success' && metadataData.metadata) {
+            deviceMetadataCache = {};
+            for (const [mac, metadata] of Object.entries(metadataData.metadata)) {
+                deviceMetadataCache[mac.toLowerCase()] = metadata;
+            }
+        }
 
         const tableDiv = document.getElementById('connectedDevicesTable');
         const errorDiv = document.getElementById('connectedDevicesErrorMessage');
@@ -192,9 +231,13 @@ function renderConnectedDevicesTable() {
 
     // Filter devices
     let filteredDevices = allConnectedDevices.filter(device => {
-        // Search filter
+        // Search filter (includes tags automatically)
         if (searchTerm) {
-            const searchableText = `${device.hostname} ${device.ip} ${device.mac} ${device.interface}`.toLowerCase();
+            // Build searchable text including tags
+            const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
+            const customNameText = device.custom_name || '';
+            const commentText = device.comment || '';
+            const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
             if (!searchableText.includes(searchTerm)) {
                 return false;
             }
@@ -260,9 +303,11 @@ function renderConnectedDevicesTable() {
                 <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em;">
                     <thead>
                         <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); width: 30px;"></th>
                             <th onclick="sortConnectedDevices('hostname')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Hostname${getSortIndicator('hostname')}</th>
                             <th onclick="sortConnectedDevices('ip')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">IP Address${getSortIndicator('ip')}</th>
                             <th onclick="sortConnectedDevices('mac')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">MAC Address${getSortIndicator('mac')}</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary);">Tags</th>
                             <th onclick="sortConnectedDevices('vlan')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">VLAN${getSortIndicator('vlan')}</th>
                             <th onclick="sortConnectedDevices('zone')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Security Zone${getSortIndicator('zone')}</th>
                             <th onclick="sortConnectedDevices('interface')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Interface${getSortIndicator('interface')}</th>
@@ -273,6 +318,40 @@ function renderConnectedDevicesTable() {
 
     displayDevices.forEach((device, index) => {
         const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const normalizedMac = device.mac.toLowerCase();
+        const isExpanded = expandedRows.has(normalizedMac);
+        const hasComment = device.comment && device.comment.trim();
+
+        // Format hostname cell - show custom name prominently, hostname as subtitle
+        let hostnameCell = '';
+        if (device.custom_name) {
+            hostnameCell = `<div style="font-weight: 600; color: #333;">${escapeHtml(device.custom_name)}</div>`;
+            const originalHostname = device.original_hostname || device.hostname || '-';
+            if (originalHostname !== '-') {
+                hostnameCell += `<div style="font-size: 0.85em; color: #666; margin-top: 2px;">${escapeHtml(originalHostname)}</div>`;
+            }
+        } else {
+            hostnameCell = `<div style="color: #666;">${escapeHtml(device.hostname || '-')}</div>`;
+        }
+
+        // Format tags cell - show as colored badge chips
+        let tagsCell = '';
+        if (device.tags && Array.isArray(device.tags) && device.tags.length > 0) {
+            tagsCell = device.tags.map(tag => {
+                return `<span style="display: inline-block; background: #FA582D; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 500; margin: 2px 2px 2px 0; white-space: nowrap;">${escapeHtml(tag)}</span>`;
+            }).join('');
+        } else {
+            tagsCell = '<span style="color: #999;">-</span>';
+        }
+
+        // Chevron icon for expand/collapse (only shown if comment exists)
+        let chevronCell = '';
+        if (hasComment) {
+            const chevron = isExpanded ? '▼' : '▶';
+            chevronCell = `<div onclick="toggleDeviceRowExpansion('${normalizedMac}'); event.stopPropagation();" style="cursor: pointer; color: #FA582D; font-size: 0.9em; user-select: none; padding: 4px; text-align: center;" title="${isExpanded ? 'Collapse' : 'Expand'} comment">${chevron}</div>`;
+        } else {
+            chevronCell = '<div style="padding: 4px; text-align: center;"></div>';
+        }
 
         // Format MAC address cell with vendor name and virtual indicator
         let macCell = `<div style="font-family: monospace; color: #333;">${device.mac}</div>`;
@@ -299,16 +378,34 @@ function renderConnectedDevicesTable() {
             macCell += `<div style="font-size: 0.75em; color: ${detailColor}; margin-top: 2px;">${device.virtual_type}</div>`;
         }
 
+        // Make row clickable to open edit modal
+        const rowId = `device-row-${normalizedMac.replace(/:/g, '-')}`;
+        const deviceDataAttr = escapeHtml(JSON.stringify(device).replace(/"/g, '&quot;'));
         html += `
-            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;">
-                <td style="padding: 12px; color: #666;">${device.hostname}</td>
+            <tr id="${rowId}" onclick="openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; cursor: pointer;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 8px 12px;">${chevronCell}</td>
+                <td style="padding: 12px;">${hostnameCell}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.ip}</td>
                 <td style="padding: 12px;">${macCell}</td>
+                <td style="padding: 12px;">${tagsCell}</td>
                 <td style="padding: 12px; color: #666;">${device.vlan}</td>
                 <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
             </tr>`;
+        
+        // Add expandable row detail for comments (if comment exists)
+        if (hasComment) {
+            const commentRowId = `device-comment-${normalizedMac.replace(/:/g, '-')}`;
+            const displayStyle = isExpanded ? '' : 'display: none;';
+            html += `
+            <tr id="${commentRowId}" style="${displayStyle} background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                <td colspan="9" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Comment:</div>
+                    <div style="white-space: pre-wrap;">${escapeHtml(device.comment)}</div>
+                </td>
+            </tr>`;
+        }
     });
 
     html += `
@@ -406,4 +503,112 @@ function downloadFile(content, filename, mimeType) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Toggle row expansion for comments
+function toggleDeviceRowExpansion(mac) {
+    const normalizedMac = mac.toLowerCase();
+    if (expandedRows.has(normalizedMac)) {
+        expandedRows.delete(normalizedMac);
+    } else {
+        expandedRows.add(normalizedMac);
+    }
+    renderConnectedDevicesTable();
+}
+
+// Open edit modal for device
+function openDeviceEditModal(mac) {
+    // Find the device data from the row
+    const normalizedMac = mac.toLowerCase();
+    const device = allConnectedDevices.find(d => d.mac.toLowerCase() === normalizedMac);
+    
+    if (!device) {
+        console.error('Device not found:', mac);
+        return;
+    }
+
+    // Get existing metadata
+    const metadata = deviceMetadataCache[normalizedMac] || {};
+    const currentName = device.custom_name || metadata.name || '';
+    const currentComment = device.comment || metadata.comment || '';
+    const currentTags = device.tags || metadata.tags || [];
+
+    // Populate modal fields
+    const modal = document.getElementById('deviceMetadataModal');
+    if (!modal) {
+        console.error('Modal not found');
+        return;
+    }
+
+    document.getElementById('deviceMetadataMac').textContent = device.mac;
+    document.getElementById('deviceMetadataIp').textContent = device.ip;
+    document.getElementById('deviceMetadataName').value = currentName;
+    document.getElementById('deviceMetadataComment').value = currentComment;
+    
+    // Populate tags input
+    const tagsInput = document.getElementById('deviceMetadataTags');
+    tagsInput.value = currentTags.join(', ');
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Store current MAC for save handler
+    modal.dataset.currentMac = mac;
+}
+
+// Save device metadata via API
+async function saveDeviceMetadata(mac, name, comment, tags) {
+    try {
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken) {
+            alert('CSRF token not found. Please refresh the page.');
+            return false;
+        }
+
+        const response = await fetch('/api/device-metadata', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                mac: mac,
+                name: name || null,
+                comment: comment || null,
+                tags: tags || []
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            // Update cache
+            const normalizedMac = mac.toLowerCase();
+            if (name || comment || (tags && tags.length > 0)) {
+                deviceMetadataCache[normalizedMac] = data.metadata;
+            } else {
+                delete deviceMetadataCache[normalizedMac];
+            }
+            
+            // Reload devices to refresh display
+            await loadConnectedDevices();
+            return true;
+        } else {
+            alert('Failed to save metadata: ' + (data.message || 'Unknown error'));
+            return false;
+        }
+    } catch (error) {
+        console.error('Error saving device metadata:', error);
+        alert('Error saving metadata: ' + error.message);
+        return false;
+    }
 }

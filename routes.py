@@ -8,6 +8,14 @@ import json
 from config import load_settings, save_settings, save_vendor_database, get_vendor_db_info, save_service_port_database, get_service_port_db_info, load_service_port_database
 from device_manager import device_manager
 from auth import login_required, verify_password, create_session, destroy_session, change_password, must_change_password
+from device_metadata import (
+    load_metadata,
+    save_metadata,
+    get_device_metadata,
+    update_device_metadata,
+    delete_device_metadata,
+    get_all_tags
+)
 from firewall_api import (
     get_throughput_data,
     get_system_logs,
@@ -358,6 +366,151 @@ def register_routes(app, csrf, limiter):
                 'devices': [],
                 'total': 0
             })
+
+    # ============================================================================
+    # Device Metadata Endpoints
+    # ============================================================================
+
+    @app.route('/api/device-metadata', methods=['GET'])
+    @limiter.limit("600 per hour")  # Support bulk loading on page load
+    @login_required
+    def get_all_device_metadata():
+        """Get all device metadata (for bulk loading on page load)"""
+        debug("=== Get all device metadata API endpoint called ===")
+        try:
+            metadata = load_metadata()
+            debug(f"Retrieved metadata for {len(metadata)} devices")
+            return jsonify({
+                'status': 'success',
+                'metadata': metadata
+            })
+        except Exception as e:
+            error(f"Error loading device metadata: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'metadata': {}
+            }), 500
+
+    @app.route('/api/device-metadata/<mac>', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_single_device_metadata(mac):
+        """Get metadata for a specific MAC address"""
+        debug(f"=== Get device metadata for MAC: {mac} ===")
+        try:
+            metadata = get_device_metadata(mac)
+            if metadata:
+                return jsonify({
+                    'status': 'success',
+                    'metadata': metadata
+                })
+            else:
+                return jsonify({
+                    'status': 'success',
+                    'metadata': None,
+                    'message': 'No metadata found for this MAC address'
+                })
+        except Exception as e:
+            error(f"Error getting device metadata for {mac}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/device-metadata', methods=['POST'])
+    @login_required
+    @limiter.limit("100 per hour")  # Device management category
+    def create_or_update_device_metadata():
+        """Create or update device metadata (requires CSRF token)"""
+        debug("=== Create/update device metadata API endpoint called ===")
+        try:
+            data = request.get_json()
+            
+            if not data or 'mac' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'MAC address is required'
+                }), 400
+            
+            mac = data.get('mac')
+            name = data.get('name')
+            comment = data.get('comment')
+            tags = data.get('tags')
+            
+            # Validate tags is a list if provided
+            if tags is not None and not isinstance(tags, list):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Tags must be a list'
+                }), 400
+            
+            success = update_device_metadata(mac, name=name, comment=comment, tags=tags)
+            
+            if success:
+                # Return updated metadata
+                updated_metadata = get_device_metadata(mac)
+                return jsonify({
+                    'status': 'success',
+                    'metadata': updated_metadata,
+                    'message': 'Metadata saved successfully'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to save metadata'
+                }), 500
+        except Exception as e:
+            error(f"Error saving device metadata: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/device-metadata/<mac>', methods=['DELETE'])
+    @login_required
+    @limiter.limit("100 per hour")  # Device management category
+    def delete_device_metadata_endpoint(mac):
+        """Delete device metadata (requires CSRF token)"""
+        debug(f"=== Delete device metadata for MAC: {mac} ===")
+        try:
+            success = delete_device_metadata(mac)
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Metadata deleted successfully'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to delete metadata'
+                }), 500
+        except Exception as e:
+            error(f"Error deleting device metadata for {mac}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/device-metadata/tags', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_all_device_tags():
+        """Get all unique tags across all devices"""
+        debug("=== Get all device tags API endpoint called ===")
+        try:
+            tags = get_all_tags()
+            return jsonify({
+                'status': 'success',
+                'tags': tags
+            })
+        except Exception as e:
+            error(f"Error getting device tags: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'tags': []
+            }), 500
 
     @app.route('/api/applications')
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds

@@ -2011,6 +2011,83 @@
         </div>
     </div>
 
+    <!-- Device Metadata Edit Modal -->
+    <div id="deviceMetadataModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; justify-content: center; align-items: center; font-family: var(--font-primary);">
+        <div style="background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #FA582D;">
+                <h2 style="color: #FA582D; font-size: 1.5em; font-weight: 700; margin: 0;">Edit Device Metadata</h2>
+                <button onclick="closeDeviceMetadataModal()" style="background: none; border: none; font-size: 1.5em; color: #666; cursor: pointer; padding: 0; width: 30px; height: 30px; line-height: 30px;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#666'">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px;">
+                <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;"><strong>MAC Address:</strong> <span id="deviceMetadataMac" style="font-family: monospace; color: #333;"></span></div>
+                <div style="font-size: 0.9em; color: #666;"><strong>IP Address:</strong> <span id="deviceMetadataIp" style="font-family: monospace; color: #333;"></span></div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Custom Name</label>
+                <input type="text" id="deviceMetadataName" placeholder="Enter custom device name" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'">
+                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Leave empty to use default hostname</div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Comment</label>
+                <textarea id="deviceMetadataComment" placeholder="Enter device comment or notes" rows="4" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; resize: vertical; transition: border-color 0.3s; font-family: var(--font-secondary);" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'"></textarea>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Tags</label>
+                <input type="text" id="deviceMetadataTags" placeholder="Enter tags separated by commas (e.g., mobile, employee, priority)" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'">
+                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Separate multiple tags with commas. Tags are searchable.</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button onclick="closeDeviceMetadataModal()" style="padding: 10px 24px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f0f0f0'">Cancel</button>
+                <button onclick="saveDeviceMetadataFromModal()" style="padding: 10px 24px; background: linear-gradient(135deg, #FA582D 0%, #C64620 100%); color: white; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal JavaScript Handlers -->
+    <script>
+        function closeDeviceMetadataModal() {
+            const modal = document.getElementById('deviceMetadataModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        async function saveDeviceMetadataFromModal() {
+            const modal = document.getElementById('deviceMetadataModal');
+            if (!modal) return;
+
+            const mac = modal.dataset.currentMac;
+            if (!mac) {
+                alert('Device MAC address not found');
+                return;
+            }
+
+            const name = document.getElementById('deviceMetadataName').value.trim();
+            const comment = document.getElementById('deviceMetadataComment').value.trim();
+            const tagsInput = document.getElementById('deviceMetadataTags').value.trim();
+            
+            // Parse tags from comma-separated string
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+            const success = await saveDeviceMetadata(mac, name, comment, tags);
+            if (success) {
+                closeDeviceMetadataModal();
+            }
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('deviceMetadataModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeviceMetadataModal();
+            }
+        });
+    </script>
+
     <!-- Load JavaScript modules in order -->
     <script src="/static/logs.js"></script>
     <script src="/static/pages.js"></script>

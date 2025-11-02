@@ -18,6 +18,7 @@ DEVICES_FILE = os.path.join(os.path.dirname(__file__), 'devices.json')
 VENDOR_DB_FILE = os.path.join(os.path.dirname(__file__), 'mac_vendor_db.json')
 SERVICE_PORT_DB_FILE = os.path.join(os.path.dirname(__file__), 'service_port_db.json')
 AUTH_FILE = os.path.join(os.path.dirname(__file__), 'auth.json')
+METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
 SECURITY_LOG_FILE = os.path.join(os.path.dirname(__file__), 'security.log')
 
 # Default settings
