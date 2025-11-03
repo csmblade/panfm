@@ -195,6 +195,17 @@ def get_vendor_db_info():
         debug("Vendor database loaded in memory, returning cached info")
         entry_count = len(_vendor_db_cache) if _vendor_db_cache else 0
 
+        # Database only "exists" if it has entries (not just an empty file)
+        if entry_count == 0:
+            debug("Vendor database has zero entries, reporting as not loaded")
+            return {
+                'exists': False,
+                'size': 0,
+                'size_mb': 0,
+                'modified': 'N/A',
+                'entries': 0
+            }
+
         # Get file stats if file exists
         if os.path.exists(VENDOR_DB_FILE):
             file_size = os.path.getsize(VENDOR_DB_FILE)
@@ -228,6 +239,16 @@ def get_vendor_db_info():
                 entry_count = len(vendor_list)
         except:
             entry_count = 0
+
+        # Database only "exists" if it has entries
+        if entry_count == 0:
+            return {
+                'exists': False,
+                'size': 0,
+                'size_mb': 0,
+                'modified': 'N/A',
+                'entries': 0
+            }
 
         return {
             'exists': True,
@@ -336,6 +357,17 @@ def get_service_port_db_info():
         debug("Service port database loaded in memory, returning cached info")
         entry_count = len(_service_port_db_cache) if _service_port_db_cache else 0
 
+        # Database only "exists" if it has entries (not just an empty file)
+        if entry_count == 0:
+            debug("Service port database has zero entries, reporting as not loaded")
+            return {
+                'exists': False,
+                'size': 0,
+                'size_mb': 0,
+                'modified': 'N/A',
+                'entries': 0
+            }
+
         # Get file stats if file exists
         if os.path.exists(SERVICE_PORT_DB_FILE):
             file_size = os.path.getsize(SERVICE_PORT_DB_FILE)
@@ -369,6 +401,16 @@ def get_service_port_db_info():
                 entry_count = len(service_data)
         except:
             entry_count = 0
+
+        # Database only "exists" if it has entries
+        if entry_count == 0:
+            return {
+                'exists': False,
+                'size': 0,
+                'size_mb': 0,
+                'modified': 'N/A',
+                'entries': 0
+            }
 
         return {
             'exists': True,
