@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 6
-VERSION_PATCH = 1
+VERSION_PATCH = 2
 
 # Build metadata (optional)
 VERSION_BUILD = "20251103"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251103"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Secure Backup Recovery"
+VERSION_CODENAME = "Bug Fix Release"
 
 
 def get_version():
@@ -75,6 +75,34 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.6.2',
+        'codename': 'Bug Fix Release',
+        'date': '2025-11-03',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: Double encryption bug completely resolved',
+            'Enhanced is_encrypted() to use Fernet signature detection (gAAAAA prefix)',
+            'Previous length-based check (>80 chars) was insufficient',
+            'Now verifies base64-decoded data starts with Fernet version byte',
+            'Fixed save_devices() to check encryption status before encrypting API keys',
+            'Prevents double encryption when devices loaded/modified/saved',
+            'CRITICAL FIX: Auto-select first device after backup restore',
+            'Fixed "No connected devices found" error after restore',
+            'Applications and Connected Devices pages now work immediately after restore',
+            'Auto-selects first device if selected_device_id is empty after device restore',
+            'CLEANUP: Removed deprecated "version" field from docker-compose.yml',
+            'Eliminates Docker Compose v2.x warning message',
+            'DOCUMENTATION: Added backup/restore integration requirement to CLAUDE.md',
+            'All future features with persistent data must integrate with backup system',
+            'Added testing requirements and code patterns to follow',
+            'ENCRYPTION CONSISTENCY: Future-proofed device manager operations',
+            'Explicit decrypt_api_keys=True in add_device(), update_device(), delete_device()',
+            'Modified files: device_manager.py, encryption.py, backup_restore.py',
+            'Modified files: docker-compose.yml, .claude/CLAUDE.md',
+            '6 commits: cbf5f42, 78a7faf, 5de1b38, 8890fe6, d4d376b, 33d0cb9'
+        ]
+    },
     {
         'version': '1.6.1',
         'codename': 'Secure Backup Recovery',
