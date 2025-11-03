@@ -33,9 +33,13 @@ def create_full_backup():
         settings = load_settings()
         debug(f"Loaded settings: {len(settings)} keys")
 
-        # Load devices
-        devices_data = device_manager.load_devices()
-        debug(f"Loaded devices: {len(devices_data.get('devices', []))} devices")
+        # Load devices (returns list of devices, not dict)
+        devices_list = device_manager.load_devices()
+        debug(f"Loaded devices: {len(devices_list)} devices")
+
+        # Load full devices data structure from file to get groups too
+        with open(device_manager.devices_file, 'r') as f:
+            devices_data = json.load(f)  # This has {'devices': [...], 'groups': [...]}
 
         # Load metadata (get all, regardless of format)
         metadata = load_metadata(use_cache=False)
@@ -114,7 +118,19 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         if restore_devices and 'devices' in backup_data:
             try:
                 devices_data = backup_data['devices']
-                if device_manager.save_devices(devices_data):
+                # save_devices expects just the list, but we need to restore full structure with groups
+                devices_list = devices_data.get('devices', []) if isinstance(devices_data, dict) else devices_data
+
+                # Save devices list
+                if device_manager.save_devices(devices_list):
+                    # Also restore groups if present in backup
+                    if isinstance(devices_data, dict) and 'groups' in devices_data:
+                        with open(device_manager.devices_file, 'r') as f:
+                            full_data = json.load(f)
+                        full_data['groups'] = devices_data['groups']
+                        with open(device_manager.devices_file, 'w') as f:
+                            json.dump(full_data, f, indent=2)
+
                     result['restored'].append('devices')
                     info("Successfully restored devices")
                 else:
