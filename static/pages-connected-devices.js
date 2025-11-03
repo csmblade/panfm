@@ -337,6 +337,7 @@ function renderConnectedDevicesTable() {
                             <th onclick="sortConnectedDevices('ip')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">IP Address${getSortIndicator('ip')}</th>
                             <th onclick="sortConnectedDevices('mac')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">MAC Address${getSortIndicator('mac')}</th>
                             <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary);">Tags</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary);">Location</th>
                             <th onclick="sortConnectedDevices('vlan')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">VLAN${getSortIndicator('vlan')}</th>
                             <th onclick="sortConnectedDevices('zone')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Security Zone${getSortIndicator('zone')}</th>
                             <th onclick="sortConnectedDevices('interface')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Interface${getSortIndicator('interface')}</th>
@@ -373,11 +374,21 @@ function renderConnectedDevicesTable() {
             tagsCell = '<span style="color: #999;">-</span>';
         }
 
-        // Chevron icon for expand/collapse (only shown if comment exists)
+        // Format location cell - show as colored badge chip (similar to tags)
+        let locationCell = '';
+        if (device.location && device.location.trim()) {
+            locationCell = `<span style="display: inline-block; background: #4A90E2; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 500; white-space: nowrap;">${escapeHtml(device.location)}</span>`;
+        } else {
+            locationCell = '<span style="color: #999;">-</span>';
+        }
+
+        // Chevron icon for expand/collapse (only shown if comment or location exists)
+        const hasLocation = device.location && device.location.trim();
+        const hasDetails = hasComment || hasLocation;
         let chevronCell = '';
-        if (hasComment) {
+        if (hasDetails) {
             const chevron = isExpanded ? '▼' : '▶';
-            chevronCell = `<div onclick="toggleDeviceRowExpansion('${normalizedMac}'); event.stopPropagation();" style="cursor: pointer; color: #FA582D; font-size: 0.9em; user-select: none; padding: 4px; text-align: center;" title="${isExpanded ? 'Collapse' : 'Expand'} comment">${chevron}</div>`;
+            chevronCell = `<div onclick="toggleDeviceRowExpansion('${normalizedMac}'); event.stopPropagation();" style="cursor: pointer; color: #FA582D; font-size: 0.9em; user-select: none; padding: 4px; text-align: center;" title="${isExpanded ? 'Collapse' : 'Expand'} details">${chevron}</div>`;
         } else {
             chevronCell = '<div style="padding: 4px; text-align: center;"></div>';
         }
@@ -417,21 +428,40 @@ function renderConnectedDevicesTable() {
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.ip}</td>
                 <td style="padding: 12px;">${macCell}</td>
                 <td style="padding: 12px;">${tagsCell}</td>
+                <td style="padding: 12px;">${locationCell}</td>
                 <td style="padding: 12px; color: #666;">${device.vlan}</td>
                 <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
             </tr>`;
         
-        // Add expandable row detail for comments (if comment exists)
-        if (hasComment) {
+        // Add expandable row detail for location/comments (if either exists)
+        if (hasDetails) {
             const commentRowId = `device-comment-${normalizedMac.replace(/:/g, '-')}`;
             const displayStyle = isExpanded ? '' : 'display: none;';
             html += `
             <tr id="${commentRowId}" style="${displayStyle} background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
-                <td colspan="9" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">
-                    <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Comment:</div>
-                    <div style="white-space: pre-wrap;">${escapeHtml(device.comment)}</div>
+                <td colspan="10" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">`;
+
+            // Show location if it exists
+            if (hasLocation) {
+                html += `
+                    <div style="margin-bottom: ${hasComment ? '12px' : '0'};">
+                        <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Location:</div>
+                        <div style="white-space: pre-wrap;">${escapeHtml(device.location)}</div>
+                    </div>`;
+            }
+
+            // Show comment if it exists
+            if (hasComment) {
+                html += `
+                    <div>
+                        <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Comment:</div>
+                        <div style="white-space: pre-wrap;">${escapeHtml(device.comment)}</div>
+                    </div>`;
+            }
+
+            html += `
                 </td>
             </tr>`;
         }
