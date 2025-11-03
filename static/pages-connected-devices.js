@@ -198,6 +198,13 @@ function setupConnectedDevicesEventListeners() {
         exportXMLBtn.setAttribute('data-listener', 'true');
     }
 
+    // Metadata export button
+    const exportMetadataBtn = document.getElementById('exportMetadataBtn');
+    if (exportMetadataBtn && !exportMetadataBtn.hasAttribute('data-listener')) {
+        exportMetadataBtn.addEventListener('click', exportDeviceMetadata);
+        exportMetadataBtn.setAttribute('data-listener', 'true');
+    }
+
     // Populate VLAN and Zone filters with unique values
     populateVLANFilter();
     populateZoneFilter();
@@ -922,3 +929,103 @@ async function saveDeviceMetadata(mac, name, location, comment, tags) {
         return false;
     }
 }
+
+// Export device metadata as JSON backup
+async function exportDeviceMetadata() {
+    try {
+        const response = await fetch('/api/device-metadata/export');
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            alert('Failed to export metadata: ' + (errorData.message || 'Unknown error'));
+            return;
+        }
+
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'device_metadata_backup.json';
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].replace(/['"]/g, '');
+            }
+        }
+
+        // Download file
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        console.log('Metadata exported successfully');
+    } catch (error) {
+        console.error('Error exporting metadata:', error);
+        alert('Error exporting metadata: ' + error.message);
+    }
+}
+
+// Import device metadata from JSON backup file
+async function importDeviceMetadata() {
+    const fileInput = document.getElementById('importMetadataFile');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        return;
+    }
+
+    const file = fileInput.files[0];
+
+    if (!file.name.endsWith('.json')) {
+        alert('File must be a JSON file');
+        fileInput.value = '';
+        return;
+    }
+
+    // Confirm import
+    const confirmMessage = `Are you sure you want to import metadata from "${file.name}"?\n\nThis will merge the imported metadata with existing metadata. Devices with the same MAC address will be updated.`;
+    if (!confirm(confirmMessage)) {
+        fileInput.value = '';
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        const response = await fetch('/api/device-metadata/import', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            alert(`Metadata imported successfully!\n\n${data.message}\n\nReloading devices...`);
+            
+            // Clear file input
+            fileInput.value = '';
+            
+            // Reload devices and metadata
+            await loadConnectedDevices();
+        } else {
+            alert('Failed to import metadata: ' + (data.message || 'Unknown error'));
+            fileInput.value = '';
+        }
+    } catch (error) {
+        console.error('Error importing metadata:', error);
+        alert('Error importing metadata: ' + error.message);
+        fileInput.value = '';
+    }
+}
+
+// Make importDeviceMetadata available globally for inline event handler
+window.importDeviceMetadata = importDeviceMetadata;
