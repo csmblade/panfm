@@ -742,6 +742,107 @@ function setupTagAutocomplete() {
     });
 }
 
+// Setup location autocomplete
+function setupLocationAutocomplete() {
+    const input = document.getElementById('deviceMetadataLocation');
+    const dropdown = document.getElementById('locationAutocompleteDropdown');
+    
+    if (!input || !dropdown) {
+        console.warn('Location autocomplete elements not found');
+        return;
+    }
+
+    let hideTimeout = null;
+
+    input.addEventListener('input', function() {
+        const value = this.value.toLowerCase().trim();
+        
+        // Clear hide timeout
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+        }
+
+        // Filter locations based on current input
+        if (value.length > 0) {
+            const matches = allLocationsCache.filter(location => 
+                location.toLowerCase().includes(value) &&
+                location.toLowerCase() !== value
+            ).slice(0, 10); // Limit to 10 suggestions
+
+            if (matches.length > 0) {
+                dropdown.innerHTML = '';
+                matches.forEach(location => {
+                    const item = document.createElement('div');
+                    item.className = 'location-suggestion';
+                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
+                    item.textContent = location;
+                    item.onmouseover = () => item.style.background = '#f0f0f0';
+                    item.onmouseout = () => item.style.background = 'white';
+                    item.onclick = () => {
+                        input.value = location;
+                        dropdown.style.display = 'none';
+                        input.focus();
+                    };
+                    dropdown.appendChild(item);
+                });
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        } else {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    input.addEventListener('blur', function() {
+        // Delay hiding to allow clicks on suggestions
+        hideTimeout = setTimeout(() => {
+            dropdown.style.display = 'none';
+        }, 200);
+    });
+
+    input.addEventListener('focus', function() {
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+        }
+        // Show suggestions if there's a value
+        const value = this.value.toLowerCase().trim();
+        if (value.length > 0) {
+            const matches = allLocationsCache.filter(location => 
+                location.toLowerCase().includes(value) &&
+                location.toLowerCase() !== value
+            ).slice(0, 10);
+            
+            if (matches.length > 0) {
+                dropdown.innerHTML = '';
+                matches.forEach(location => {
+                    const item = document.createElement('div');
+                    item.className = 'location-suggestion';
+                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
+                    item.textContent = location;
+                    item.onmouseover = () => item.style.background = '#f0f0f0';
+                    item.onmouseout = () => item.style.background = 'white';
+                    item.onclick = () => {
+                        input.value = location;
+                        dropdown.style.display = 'none';
+                        input.focus();
+                    };
+                    dropdown.appendChild(item);
+                });
+                dropdown.style.display = 'block';
+            }
+        }
+    });
+
+    // Prevent dropdown from closing when clicking on it
+    dropdown.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+    });
+    
+    // Hide dropdown initially
+    dropdown.style.display = 'none';
+}
+
 // Select a tag from autocomplete and add it to input
 function selectTag(tag, input) {
     const value = input.value;
