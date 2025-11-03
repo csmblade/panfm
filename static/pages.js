@@ -137,6 +137,121 @@ function sortSystemLogs(logs, sortBy) {
     });
 }
 
+// ============================================================================
+// DHCP Leases Functions
+// ============================================================================
+
+/**
+ * Load DHCP leases from the firewall
+ */
+async function loadDhcpLeases() {
+    const loadingDiv = document.getElementById('dhcpLoading');
+    const contentDiv = document.getElementById('dhcpContent');
+    const errorDiv = document.getElementById('dhcpErrorMessage');
+
+    // Show loading animation
+    loadingDiv.style.display = 'block';
+    contentDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/dhcp-leases');
+        const data = await response.json();
+
+        // Hide loading animation
+        loadingDiv.style.display = 'none';
+
+        if (data.status === 'success') {
+            if (data.leases && data.leases.length > 0) {
+                errorDiv.style.display = 'none';
+                contentDiv.style.display = 'block';
+
+                // Update summary
+                document.getElementById('dhcpTotalLeases').textContent = data.total || data.leases.length;
+
+                // Render the DHCP leases table
+                renderDhcpTable(data.leases);
+            } else {
+                // No leases found - show empty state
+                contentDiv.style.display = 'block';
+                document.getElementById('dhcpTotalLeases').textContent = '0';
+                document.getElementById('dhcpLeasesTable').style.display = 'none';
+                document.getElementById('dhcpEmptyState').style.display = 'block';
+            }
+        } else if (data.status === 'error') {
+            errorDiv.textContent = `Error: ${data.message || 'Failed to fetch DHCP leases'}`;
+            errorDiv.style.display = 'block';
+        } else {
+            errorDiv.textContent = 'No DHCP leases found';
+            errorDiv.style.display = 'block';
+        }
+
+    } catch (error) {
+        console.error('Error loading DHCP leases:', error);
+        loadingDiv.style.display = 'none';
+        errorDiv.textContent = `Error: ${error.message}`;
+        errorDiv.style.display = 'block';
+    }
+}
+
+/**
+ * Render the DHCP leases table
+ * @param {Array} leases - Array of DHCP lease objects
+ */
+function renderDhcpTable(leases) {
+    const tableBody = document.getElementById('dhcpLeasesTableBody');
+    const emptyState = document.getElementById('dhcpEmptyState');
+    const table = document.getElementById('dhcpLeasesTable');
+
+    if (!leases || leases.length === 0) {
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+
+    // Show table, hide empty state
+    table.style.display = 'table';
+    emptyState.style.display = 'none';
+
+    // Build table rows
+    let tableHTML = '';
+    leases.forEach(lease => {
+        const ip = escapeHtml(lease.ip || 'N/A');
+        const mac = escapeHtml(lease.mac || 'N/A');
+        const hostname = escapeHtml(lease.hostname || 'Unknown');
+        const state = escapeHtml(lease.state || 'UNKNOWN');
+        const expiration = escapeHtml(lease.expiration || 'N/A');
+        const iface = escapeHtml(lease.interface || 'N/A');
+
+        // Color code the state
+        let stateColor = '#666';
+        if (state === 'BOUND') {
+            stateColor = '#28a745'; // Green
+        } else if (state === 'EXPIRED') {
+            stateColor = '#dc3545'; // Red
+        } else if (state === 'OFFERED') {
+            stateColor = '#ffc107'; // Yellow
+        }
+
+        tableHTML += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px; font-family: 'Courier New', monospace; color: #FA582D; font-weight: 600;">${ip}</td>
+                <td style="padding: 12px; font-family: 'Courier New', monospace; color: #666;">${mac}</td>
+                <td style="padding: 12px; color: #333; font-weight: 500;">${hostname}</td>
+                <td style="padding: 12px;">
+                    <span style="background: ${stateColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; font-family: var(--font-primary);">
+                        ${state}
+                    </span>
+                </td>
+                <td style="padding: 12px; color: #666; font-family: var(--font-secondary);">${expiration}</td>
+                <td style="padding: 12px; color: #666; font-family: var(--font-secondary);">${iface}</td>
+            </tr>
+        `;
+    });
+
+    tableBody.innerHTML = tableHTML;
+}
+
 // Load system logs data
 // Load software updates data
 async function loadSoftwareUpdates() {

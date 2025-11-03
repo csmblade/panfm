@@ -1,13 +1,13 @@
 # PANfm - Palo Alto Networks Firewall Monitor
 
-![Version](https://img.shields.io/badge/Version-1.6.0-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.6.3-brightgreen?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Web_Framework-black?style=for-the-badge&logo=flask&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=csmblade%2Fpanfm&countColor=%23FA582D&style=for-the-badge&labelStyle=upper)
 
-A real-time monitoring dashboard for Palo Alto Networks firewalls with automated PAN-OS upgrades, content management, and multi-device support.
+A real-time monitoring dashboard for Palo Alto Networks firewalls with automated PAN-OS upgrades, content management, and multi-device support. This is a POC experiment to see how agentic AI can help bring ideas to life.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ PANfm uses a two-branch workflow:
 - **`main` branch** - Stable production releases (recommended for deployment)
 - **`test` branch** - Active development (for contributors and testing)
 
-For production use, clone `main`. For development, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For production use, clone `main`.
 
 ### Deploy with Docker
 
@@ -123,17 +123,9 @@ Download and upload via **Settings > Databases**:
 - Content update management
 - Traffic and threat log analysis
 - Connected devices tracking
+- DHCP lease monitoring
 - Security policy management
 - All sensitive data encrypted at rest
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- Development workflow
-- Branching strategy (`test` branch for development)
-- Coding standards
-- Testing requirements
-- How to submit changes
 
 ## Support
 

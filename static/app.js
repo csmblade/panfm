@@ -956,29 +956,41 @@ function initPageNavigation() {
                 // Show target tab content, hide others
                 const softwareUpdatesTab = document.getElementById('software-updates-tab');
                 const interfacesTab = document.getElementById('interfaces-tab');
+                const dhcpTab = document.getElementById('dhcp-tab');
                 const techSupportTab = document.getElementById('tech-support-tab');
                 const rebootTab = document.getElementById('reboot-tab');
 
                 if (targetTab === 'software-updates') {
                     softwareUpdatesTab.style.display = 'block';
                     interfacesTab.style.display = 'none';
+                    dhcpTab.style.display = 'none';
                     techSupportTab.style.display = 'none';
                     rebootTab.style.display = 'none';
                     loadSoftwareUpdates();
                 } else if (targetTab === 'interfaces') {
                     softwareUpdatesTab.style.display = 'none';
                     interfacesTab.style.display = 'block';
+                    dhcpTab.style.display = 'none';
                     techSupportTab.style.display = 'none';
                     rebootTab.style.display = 'none';
                     loadInterfaces();
+                } else if (targetTab === 'dhcp') {
+                    softwareUpdatesTab.style.display = 'none';
+                    interfacesTab.style.display = 'none';
+                    dhcpTab.style.display = 'block';
+                    techSupportTab.style.display = 'none';
+                    rebootTab.style.display = 'none';
+                    loadDhcpLeases();
                 } else if (targetTab === 'tech-support') {
                     softwareUpdatesTab.style.display = 'none';
                     interfacesTab.style.display = 'none';
+                    dhcpTab.style.display = 'none';
                     techSupportTab.style.display = 'block';
                     rebootTab.style.display = 'none';
                 } else if (targetTab === 'reboot') {
                     softwareUpdatesTab.style.display = 'none';
                     interfacesTab.style.display = 'none';
+                    dhcpTab.style.display = 'none';
                     techSupportTab.style.display = 'none';
                     rebootTab.style.display = 'block';
                 }
@@ -1304,8 +1316,9 @@ function refreshAllDataForDevice() {
         loadApplications();
     } else if (currentVisiblePage === 'device-info') {
         // Check which Device Info tab is visible
-        const softwareTab = document.getElementById('softwareUpdatesTab');
-        const interfacesTab = document.getElementById('interfacesTab');
+        const softwareTab = document.getElementById('software-updates-tab');
+        const interfacesTab = document.getElementById('interfaces-tab');
+        const dhcpTab = document.getElementById('dhcp-tab');
 
         if (softwareTab && softwareTab.style.display !== 'none' && typeof loadSoftwareUpdates === 'function') {
             console.log('Loading Software Updates tab');
@@ -1313,6 +1326,9 @@ function refreshAllDataForDevice() {
         } else if (interfacesTab && interfacesTab.style.display !== 'none' && typeof loadInterfaces === 'function') {
             console.log('Loading Interfaces tab');
             loadInterfaces();
+        } else if (dhcpTab && dhcpTab.style.display !== 'none' && typeof loadDhcpLeases === 'function') {
+            console.log('Loading DHCP tab');
+            loadDhcpLeases();
         }
         // Tech Support and Reboot tabs don't auto-load data
     } else if (currentVisiblePage === 'logs' && typeof loadSystemLogs === 'function') {

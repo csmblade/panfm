@@ -378,6 +378,36 @@ def register_routes(app, csrf, limiter):
                 'total': 0
             })
 
+    @app.route('/api/dhcp-leases')
+    @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
+    @login_required
+    def dhcp_leases_api():
+        """API endpoint for DHCP lease information"""
+        debug("=== DHCP Leases API endpoint called ===")
+        try:
+            firewall_config = get_firewall_config()
+
+            # Import DHCP function
+            from firewall_api_dhcp import get_dhcp_leases_detailed
+
+            leases = get_dhcp_leases_detailed(firewall_config)
+            debug(f"Retrieved {len(leases)} DHCP lease(s) from firewall")
+
+            return jsonify({
+                'status': 'success',
+                'leases': leases,
+                'total': len(leases),
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            error(f"Error in DHCP leases API: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'leases': [],
+                'total': 0
+            })
+
     # ============================================================================
     # Device Metadata Endpoints
     # ============================================================================

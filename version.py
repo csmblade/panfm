@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 6
-VERSION_PATCH = 2
+VERSION_PATCH = 3
 
 # Build metadata (optional)
 VERSION_BUILD = "20251103"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251103"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Bug Fix Release"
+VERSION_CODENAME = "DHCP Monitoring"
 
 
 def get_version():
@@ -75,6 +75,29 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.6.3',
+        'codename': 'DHCP Monitoring',
+        'date': '2025-11-03',
+        'type': 'patch',
+        'changes': [
+            'NEW FEATURE: DHCP tab added to Device Info page',
+            'Display active DHCP leases with IP, MAC, hostname, state, expiration, interface',
+            'Concise summary showing total active leases',
+            'State color coding: BOUND (green), EXPIRED (red), OFFERED (yellow)',
+            'Empty state handling for firewalls without DHCP configured',
+            'New backend module: firewall_api_dhcp.py (336 lines)',
+            'New API endpoint: GET /api/dhcp-leases (rate limit: 600/hour)',
+            'Functions: get_dhcp_servers(), get_dhcp_leases_detailed(), parse_dhcp_entry()',
+            'API command: <show><dhcp><server><lease></lease></server></dhcp></show>',
+            'Tab positioned after Interfaces tab for logical workflow',
+            'Frontend: loadDhcpLeases() and renderDhcpTable() in pages.js',
+            'Device change integration: refreshAllDataForDevice() updated',
+            'Full XML parsing with graceful error handling',
+            'Modified files: firewall_api_dhcp.py (new), routes.py, firewall_api.py',
+            'Modified files: templates/index.html, static/pages.js, static/app.js, version.py'
+        ]
+    },
     {
         'version': '1.6.2',
         'codename': 'Bug Fix Release',

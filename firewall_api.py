@@ -48,6 +48,11 @@ from firewall_api_content import (
     download_content_update,
     install_content_update
 )
+from firewall_api_dhcp import (
+    get_dhcp_servers,
+    get_dhcp_leases_detailed,
+    get_dhcp_summary
+)
 
 # Store previous values for throughput calculation
 # Store per-device statistics for rate calculation

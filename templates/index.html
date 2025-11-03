@@ -1163,6 +1163,9 @@
                     <button class="device-info-tab active" data-tab="interfaces" style="padding: 12px 24px; background: transparent; border: none; color: #FA582D; font-size: 1em; font-weight: 600; cursor: pointer; border-bottom: 3px solid #FA582D; transition: all 0.3s;">
                         Interfaces
                     </button>
+                    <button class="device-info-tab" data-tab="dhcp" style="padding: 12px 24px; background: transparent; border: none; color: rgba(255, 255, 255, 0.6); font-size: 1em; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s;">
+                        DHCP
+                    </button>
                     <button class="device-info-tab" data-tab="software-updates" style="padding: 12px 24px; background: transparent; border: none; color: rgba(255, 255, 255, 0.6); font-size: 1em; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s;">
                         Software Updates
                     </button>
@@ -1217,6 +1220,58 @@
                             </div>
                             <div id="interfacesTable" style="overflow-x: auto;">
                                 <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DHCP Tab Content -->
+                <div id="dhcp-tab" class="device-info-tab-content" style="display: none;">
+                    <div class="error-message" id="dhcpErrorMessage"></div>
+
+                    <div id="dhcpLoading" style="display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="color: #666; font-family: var(--font-secondary); font-size: 1em;">Loading DHCP leases...</p>
+                    </div>
+
+                    <div id="dhcpContent" style="display: none;">
+                        <!-- Summary Section -->
+                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 10px 0;">DHCP Summary</h3>
+                            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                                <div>
+                                    <p style="color: #999; font-size: 0.85em; margin: 0; font-family: var(--font-secondary);">Total Active Leases</p>
+                                    <p id="dhcpTotalLeases" style="color: #FA582D; font-size: 1.8em; font-weight: 700; margin: 5px 0 0 0; font-family: var(--font-primary);">0</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DHCP Leases Table -->
+                        <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 20px 0;">Active DHCP Leases</h3>
+
+                            <div style="overflow-x: auto;">
+                                <table id="dhcpLeasesTable" style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
+                                    <thead>
+                                        <tr style="background: linear-gradient(135deg, #FA582D 0%, #ff7849 100%); color: white;">
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">IP Address</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">MAC Address</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Hostname</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">State</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Expiration</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Interface</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dhcpLeasesTableBody">
+                                        <!-- Table rows will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Empty State -->
+                            <div id="dhcpEmptyState" style="display: none; text-align: center; padding: 40px 20px;">
+                                <p style="color: #999; font-family: var(--font-secondary); font-size: 1em; margin: 0;">No active DHCP leases found</p>
+                                <p style="color: #ccc; font-family: var(--font-secondary); font-size: 0.9em; margin: 10px 0 0 0;">The DHCP server may not be configured or no devices have active leases.</p>
                             </div>
                         </div>
                     </div>
