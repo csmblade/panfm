@@ -923,6 +923,13 @@
                             <button id="exportDevicesXML" style="padding: 8px 16px; background: linear-gradient(135deg, #AD3D1A 0%, #933414 100%); color: white; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                                 Export XML
                             </button>
+                            <button id="exportMetadataBtn" style="padding: 8px 16px; background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                Export Metadata
+                            </button>
+                            <label for="importMetadataFile" style="padding: 8px 16px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; transition: transform 0.2s; display: inline-block;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                Import Metadata
+                                <input type="file" id="importMetadataFile" accept=".json" style="display: none;" onchange="importDeviceMetadata()">
+                            </label>
                         </div>
                     </div>
                 </div>
