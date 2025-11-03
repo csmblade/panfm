@@ -816,9 +816,33 @@ function showAppDetails(appIndex) {
     document.getElementById('appDetailsSourceIPs').textContent = app.source_count;
     document.getElementById('appDetailsDestinations').textContent = app.dest_count;
 
-    // Populate source IP addresses
+    // Populate source IP addresses with custom hostnames
     const sourceList = document.getElementById('appDetailsSourceList');
-    if (app.source_ips && app.source_ips.length > 0) {
+    if (app.sources && app.sources.length > 0) {
+        // Use sources array which has enriched data (custom_name, original_hostname, hostname)
+        let sourceHtml = '';
+        app.sources.forEach(source => {
+            // Determine display name: custom_name -> original_hostname -> hostname -> IP
+            const displayName = source.custom_name || source.original_hostname || source.hostname || source.ip;
+            const showSubtitle = source.custom_name && (source.original_hostname || source.hostname);
+            const subtitle = source.custom_name ? (source.original_hostname || source.hostname) : null;
+            
+            sourceHtml += `
+                <div style="background: white; border: 2px solid #FA582D; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                    <div style="color: #333; font-weight: 600; font-size: 0.95em; margin-bottom: ${showSubtitle ? '3px' : '0'};">
+                        ${displayName}
+                    </div>
+                    ${showSubtitle ? `<div style="color: #666; font-size: 0.8em; margin-bottom: 3px;">${subtitle}</div>` : ''}
+                    <div style="font-family: monospace; color: #FA582D; font-size: 0.85em; font-weight: 500;">
+                        ${source.ip}
+                    </div>
+                    ${source.bytes ? `<div style="color: #999; font-size: 0.75em; margin-top: 3px;">${formatBytesHuman(source.bytes)}</div>` : ''}
+                </div>
+            `;
+        });
+        sourceList.innerHTML = sourceHtml;
+    } else if (app.source_ips && app.source_ips.length > 0) {
+        // Fallback to legacy source_ips array if sources not available
         let sourceHtml = '';
         app.source_ips.forEach(ip => {
             sourceHtml += `

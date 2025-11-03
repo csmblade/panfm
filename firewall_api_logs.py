@@ -7,7 +7,7 @@ import time
 import sys
 from utils import api_request_get
 from logger import debug, info, warning, error, exception
-from firewall_api_devices import get_dhcp_leases
+from firewall_api_devices import get_dhcp_leases, get_connected_devices
 
 
 def get_system_logs(firewall_config, max_logs=50):
@@ -558,6 +558,21 @@ def get_application_statistics(firewall_config, max_logs=5000):
         dhcp_hostnames = get_dhcp_leases(firewall_config)
         debug(f"Retrieved {len(dhcp_hostnames)} DHCP hostname mappings for source IP enrichment")
 
+        # Get connected devices for custom name enrichment
+        # This gives us IP -> {custom_name, original_hostname} mapping
+        debug("Fetching connected devices for custom name enrichment")
+        connected_devices = get_connected_devices(firewall_config)
+        # Create IP-to-device mapping for quick lookups
+        ip_to_device = {}
+        if isinstance(connected_devices, list):
+            for device in connected_devices:
+                if device.get('ip') and device['ip'] != '-':
+                    ip_to_device[device['ip']] = {
+                        'custom_name': device.get('custom_name'),
+                        'original_hostname': device.get('original_hostname', device.get('hostname', '-'))
+                    }
+        debug(f"Created IP-to-device mapping for {len(ip_to_device)} devices")
+
         # Aggregate by application
         app_stats = {}
         total_sessions = 0
@@ -672,10 +687,24 @@ def get_application_statistics(firewall_config, max_logs=5000):
             # Convert source_details dict to sorted list with hostname enrichment
             source_list = []
             for src_ip, src_info in stats['source_details'].items():
+                # Look up device info from connected devices (includes custom_name and original_hostname)
+                device_info = ip_to_device.get(src_ip)
+                
+                # Determine display name: custom_name -> original_hostname -> DHCP hostname -> IP
+                custom_name = None
+                original_hostname = None
+                hostname = dhcp_hostnames.get(src_ip, '')
+                
+                if device_info:
+                    custom_name = device_info.get('custom_name')
+                    original_hostname = device_info.get('original_hostname', hostname)
+                
                 source_list.append({
                     'ip': src_info['ip'],
                     'bytes': src_info['bytes'],
-                    'hostname': dhcp_hostnames.get(src_info['ip'], '')
+                    'hostname': hostname,  # DHCP hostname (fallback)
+                    'custom_name': custom_name,  # Custom name from metadata (highest priority)
+                    'original_hostname': original_hostname  # Original hostname (fallback if no custom_name)
                 })
             # Sort sources by bytes descending
             source_list.sort(key=lambda x: x['bytes'], reverse=True)
