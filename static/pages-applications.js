@@ -19,8 +19,6 @@ let applicationsSortBy = 'bytes'; // Default sort by volume
 let applicationsSortDesc = true;
 let categoryChart = null;
 let servicePortDb = {}; // Service port database for port-to-service name lookups
-let deviceMetadataCache = {}; // Cache device metadata for hostname lookups (keyed by IP address)
-let connectedDevicesCache = {}; // Cache connected devices for hostname lookups (keyed by IP address)
 
 async function loadApplications() {
     console.log('=== loadApplications called ===');
@@ -57,80 +55,8 @@ async function loadApplications() {
         showApplicationsError('Connection error: ' + error.message);
     }
 
-    // Load service port database and device metadata (don't block page load if these fail)
-    loadServicePortDatabase();
-    loadDeviceMetadataAndConnectedDevices();
-}
-
-async function loadDeviceMetadataAndConnectedDevices() {
-    console.log('Loading device metadata and connected devices for hostname lookups...');
-    try {
-        // Load device metadata and connected devices in parallel
-        const [metadataResponse, devicesResponse] = await Promise.all([
-            fetch('/api/device-metadata'),
-            fetch('/api/connected-devices')
-        ]);
-
-        const metadataData = await metadataResponse.json();
-        const devicesData = await devicesResponse.json();
-
-        // Cache device metadata by IP and MAC
-        if (metadataData.status === 'success' && metadataData.metadata) {
-            deviceMetadataCache = {};
-            for (const [mac, metadata] of Object.entries(metadataData.metadata)) {
-                // Will map by IP when we have connected devices
-                deviceMetadataCache[mac.toLowerCase()] = metadata;
-            }
-            console.log(`Loaded metadata for ${Object.keys(deviceMetadataCache).length} devices`);
-        }
-
-        // Cache connected devices by IP address
-        if (devicesData.status === 'success' && devicesData.devices) {
-            connectedDevicesCache = {};
-            devicesData.devices.forEach(device => {
-                // Build lookup data for each IP
-                const normalizedMac = device.mac.toLowerCase();
-                const metadata = deviceMetadataCache[normalizedMac] || {};
-
-                connectedDevicesCache[device.ip] = {
-                    ip: device.ip,
-                    mac: device.mac,
-                    hostname: device.hostname,
-                    custom_name: device.custom_name || metadata.name,
-                    location: device.location || metadata.location
-                };
-            });
-            console.log(`Loaded ${Object.keys(connectedDevicesCache).length} connected devices for hostname lookups`);
-        }
-    } catch (error) {
-        console.error('Error loading device metadata and connected devices:', error);
-        deviceMetadataCache = {};
-        connectedDevicesCache = {};
-    }
-}
-
-function getHostnameForIP(ip) {
-    /**
-     * Get hostname for an IP address
-     * Returns custom name if set, otherwise firewall hostname, otherwise IP
-     */
-    if (!ip) return 'N/A';
-
-    const device = connectedDevicesCache[ip];
-    if (!device) {
-        return ip; // No device info, just return IP
-    }
-
-    // Priority: custom_name > hostname > IP
-    if (device.custom_name) {
-        return device.custom_name;
-    }
-
-    if (device.hostname && device.hostname !== '-') {
-        return device.hostname;
-    }
-
-    return ip;
+    // Load service port database
+    await loadServicePortDatabase();
 }
 
 async function loadServicePortDatabase() {
@@ -890,32 +816,20 @@ function showAppDetails(appIndex) {
     document.getElementById('appDetailsSourceIPs').textContent = app.source_count;
     document.getElementById('appDetailsDestinations').textContent = app.dest_count;
 
-    // Populate source IP addresses with custom names/hostnames
+    // Populate source IP addresses
     const sourceList = document.getElementById('appDetailsSourceList');
     if (app.source_ips && app.source_ips.length > 0) {
         let sourceHtml = '';
         app.source_ips.forEach(ip => {
-            const hostname = getHostnameForIP(ip);
-            const showHostname = hostname !== ip;
-
             sourceHtml += `
-                <div style="background: white; border: 2px solid #FA582D; border-radius: 6px; padding: 8px 12px; font-size: 0.9em;">
-                    ${showHostname ? `<div style="color: #333; font-weight: 600; margin-bottom: 3px;">${escapeHtml(hostname)}</div>` : ''}
-                    <div style="font-family: monospace; color: ${showHostname ? '#FA582D' : '#333'}; font-weight: 500;">${ip}</div>
+                <div style="background: white; border: 2px solid #FA582D; border-radius: 6px; padding: 8px 12px; font-family: monospace; color: #333; font-size: 0.9em; font-weight: 500;">
+                    ${ip}
                 </div>
             `;
         });
         sourceList.innerHTML = sourceHtml;
     } else {
         sourceList.innerHTML = '<div style="padding: 10px; color: #999;">-</div>';
-    }
-
-    // Helper function to escape HTML
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     // Populate protocols
