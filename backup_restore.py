@@ -33,13 +33,19 @@ def create_full_backup():
         settings = load_settings()
         debug(f"Loaded settings: {len(settings)} keys")
 
-        # Load devices (returns list of devices, not dict)
-        devices_list = device_manager.load_devices()
+        # Load devices with decrypted API keys
+        devices_list = device_manager.load_devices(decrypt_api_keys=True)
         debug(f"Loaded devices: {len(devices_list)} devices")
 
-        # Load full devices data structure from file to get groups too
+        # Load full devices data structure to get groups (but use decrypted devices list)
         with open(device_manager.devices_file, 'r') as f:
-            devices_data = json.load(f)  # This has {'devices': [...], 'groups': [...]}
+            file_data = json.load(f)
+
+        # Build devices_data with decrypted devices + groups from file
+        devices_data = {
+            'devices': devices_list,  # Use decrypted list
+            'groups': file_data.get('groups', [])
+        }
 
         # Load metadata (get all, regardless of format)
         metadata = load_metadata(use_cache=False)
