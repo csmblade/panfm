@@ -330,3 +330,36 @@ def reload_metadata_cache():
     _cache_loaded = False  # Force reload
     return load_metadata(use_cache=False)
 
+def import_metadata(metadata_dict):
+    """
+    Import metadata dictionary, merging with existing metadata.
+    This is used for importing backup metadata files.
+    Merges imported data with existing data (imported data takes precedence).
+    
+    Args:
+        metadata_dict (dict): Metadata dictionary keyed by MAC address (may be unnormalized)
+    
+    Returns:
+        bool: True on success, False on error
+    """
+    debug("Importing device metadata")
+    try:
+        # Load existing metadata
+        existing_metadata = load_metadata(use_cache=False)  # Force reload to get latest
+        
+        # Normalize MAC addresses in imported data
+        normalized_import = {}
+        for mac, metadata in metadata_dict.items():
+            normalized_mac = mac.lower()
+            normalized_import[normalized_mac] = metadata
+        
+        # Merge: imported data takes precedence over existing
+        merged_metadata = existing_metadata.copy()
+        merged_metadata.update(normalized_import)
+        
+        # Save merged metadata
+        return save_metadata(merged_metadata)
+    except Exception as e:
+        exception(f"Failed to import metadata: {str(e)}")
+        return False
+

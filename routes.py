@@ -1,7 +1,7 @@
 """
 Flask route handlers for the Palo Alto Firewall Dashboard
 """
-from flask import render_template, jsonify, request, send_from_directory, session
+from flask import render_template, jsonify, request, send_from_directory, session, send_file
 from datetime import datetime
 import os
 import json
@@ -15,7 +15,8 @@ from device_metadata import (
     update_device_metadata,
     delete_device_metadata,
     get_all_tags,
-    get_all_locations
+    get_all_locations,
+    import_metadata
 )
 from firewall_api import (
     get_throughput_data,
@@ -536,6 +537,139 @@ def register_routes(app, csrf, limiter):
                 'status': 'error',
                 'message': str(e),
                 'locations': []
+            }), 500
+
+    @app.route('/api/device-metadata/export', methods=['GET'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def export_device_metadata():
+        """Export device metadata as JSON backup file"""
+        debug("=== Device metadata export endpoint called ===")
+        try:
+            # Load decrypted metadata
+            metadata = load_metadata(use_cache=False)  # Force reload to get latest
+            
+            # Create JSON string
+            import json
+            from io import BytesIO
+            from datetime import datetime
+            
+            # Add export metadata
+            export_data = {
+                'export_date': datetime.now().isoformat(),
+                'version': '1.0',
+                'total_devices': len(metadata),
+                'metadata': metadata
+            }
+            
+            json_str = json.dumps(export_data, indent=2)
+            json_bytes = json_str.encode('utf-8')
+            
+            # Create BytesIO object for file download
+            json_file = BytesIO(json_bytes)
+            json_file.seek(0)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'device_metadata_backup_{timestamp}.json'
+            
+            return send_file(
+                json_file,
+                mimetype='application/json',
+                as_attachment=True,
+                download_name=filename
+            )
+        except Exception as e:
+            error(f"Error exporting device metadata: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/device-metadata/import', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    @limiter.limit("50 per hour")  # Limit imports to prevent abuse
+    def import_device_metadata():
+        """Import device metadata from JSON backup file"""
+        debug("=== Device metadata import endpoint called ===")
+        try:
+            if 'file' not in request.files:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No file provided'
+                }), 400
+            
+            file = request.files['file']
+            
+            if file.filename == '':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No file selected'
+                }), 400
+            
+            if not file.filename.endswith('.json'):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'File must be a JSON file'
+                }), 400
+            
+            # Read and parse JSON
+            try:
+                file_content = file.read().decode('utf-8')
+                import_data = json.loads(file_content)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Invalid JSON file: {str(e)}'
+                }), 400
+            
+            # Extract metadata from import data
+            # Support both old format (direct metadata dict) and new format (with export metadata)
+            if 'metadata' in import_data:
+                metadata_to_import = import_data['metadata']
+                debug(f"Importing metadata from backup file (version: {import_data.get('version', 'unknown')}, export date: {import_data.get('export_date', 'unknown')})")
+            elif isinstance(import_data, dict):
+                # Assume it's a metadata dict directly
+                metadata_to_import = import_data
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid metadata format in file'
+                }), 400
+            
+            # Validate metadata structure
+            if not isinstance(metadata_to_import, dict):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Metadata must be a dictionary'
+                }), 400
+            
+            # Import metadata (merges with existing)
+            success = import_metadata(metadata_to_import)
+            
+            if success:
+                # Reload cache
+                from device_metadata import reload_metadata_cache
+                reload_metadata_cache()
+                
+                info(f"Device metadata imported successfully: {len(metadata_to_import)} devices")
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Metadata imported successfully ({len(metadata_to_import)} devices)',
+                    'devices_imported': len(metadata_to_import)
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to import metadata'
+                }), 500
+                
+        except Exception as e:
+            error(f"Error importing device metadata: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
             }), 500
 
     @app.route('/api/applications')
