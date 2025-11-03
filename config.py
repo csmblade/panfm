@@ -157,6 +157,8 @@ def save_vendor_database(vendor_data):
     Save MAC vendor database to file.
     vendor_data should be a JSON array from the source.
     """
+    global _vendor_db_cache, _vendor_db_loaded
+
     debug, error, _ = _get_logger()
     debug("Saving MAC vendor database")
 
@@ -167,6 +169,11 @@ def save_vendor_database(vendor_data):
             os.fsync(f.fileno())
 
         debug(f"Vendor database saved successfully ({len(vendor_data)} entries)")
+
+        # Reload cache to reflect new data
+        load_vendor_database(use_cache=False)
+        debug("Cache reloaded after save")
+
         return True
 
     except Exception as e:
@@ -291,6 +298,8 @@ def save_service_port_database(service_data):
     Save service port database to file.
     service_data should be a dictionary mapping ports to service info.
     """
+    global _service_port_db_cache, _service_port_db_loaded
+
     debug, error, _ = _get_logger()
     debug("Saving service port database")
 
@@ -301,6 +310,11 @@ def save_service_port_database(service_data):
             os.fsync(f.fileno())
 
         debug(f"Service port database saved successfully ({len(service_data)} port entries)")
+
+        # Reload cache to reflect new data
+        load_service_port_database(use_cache=False)
+        debug("Cache reloaded after save")
+
         return True
 
     except Exception as e:
