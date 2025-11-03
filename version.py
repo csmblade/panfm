@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 5
-VERSION_PATCH = 2
+VERSION_PATCH = 3
 
 # Build metadata (optional)
-VERSION_BUILD = "20251031"  # YYYYMMDD format
+VERSION_BUILD = "20251103"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Debug Logging"
+VERSION_CODENAME = "Device Metadata"
 
 
 def get_version():
@@ -75,6 +75,24 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.5.3',
+        'codename': 'Device Metadata',
+        'date': '2025-11-03',
+        'type': 'patch',
+        'changes': [
+            'NEW: Location field added to device metadata',
+            'NEW: Location column in Connected Devices table (blue badge)',
+            'NEW: Location displayed in expandable row details alongside comments',
+            'Enhanced device metadata modal with location input field',
+            'Location stored and encrypted in device_metadata.json',
+            'Chevron indicator now appears for devices with location OR comment',
+            'Updated table colspan from 9 to 10 columns for proper layout',
+            'Location badge uses distinct blue color (#4A90E2) vs tags (orange)',
+            'Consistent styling across table and expandable details',
+            'pages-connected-devices.js: 791 lines (under 1,000 limit)'
+        ]
+    },
     {
         'version': '1.5.2',
         'codename': 'Debug Logging',
