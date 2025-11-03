@@ -14,7 +14,8 @@ from device_metadata import (
     get_device_metadata,
     update_device_metadata,
     delete_device_metadata,
-    get_all_tags
+    get_all_tags,
+    get_all_locations
 )
 from firewall_api import (
     get_throughput_data,

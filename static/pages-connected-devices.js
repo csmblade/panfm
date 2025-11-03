@@ -18,6 +18,7 @@ let connectedDevicesSortDesc = false; // Default ascending (lowest to highest)
 let deviceMetadataCache = {}; // Cache metadata keyed by MAC address (normalized lowercase)
 let expandedRows = new Set(); // Track which rows are expanded for comments
 let allTagsCache = []; // Cache all unique tags for autocomplete
+let allLocationsCache = []; // Cache all unique locations for autocomplete
 
 async function loadDeviceMetadata() {
     console.log('Loading device metadata...');
@@ -61,19 +62,40 @@ async function loadAllTags() {
     }
 }
 
+async function loadAllLocations() {
+    console.log('Loading all locations for autocomplete...');
+    try {
+        const response = await fetch('/api/device-metadata/locations');
+        const data = await response.json();
+
+        if (data.status === 'success' && Array.isArray(data.locations)) {
+            allLocationsCache = data.locations;
+            console.log(`Loaded ${allLocationsCache.length} unique locations for autocomplete`);
+        } else {
+            console.warn('Failed to load locations:', data.message);
+            allLocationsCache = [];
+        }
+    } catch (error) {
+        console.error('Error loading locations:', error);
+        allLocationsCache = [];
+    }
+}
+
 async function loadConnectedDevices() {
     console.log('Loading connected devices...');
     try {
-        // Load metadata and tags in parallel with devices
-        const [devicesResponse, metadataResponse, tagsResponse] = await Promise.all([
+        // Load metadata, tags, and locations in parallel with devices
+        const [devicesResponse, metadataResponse, tagsResponse, locationsResponse] = await Promise.all([
             fetch('/api/connected-devices'),
             fetch('/api/device-metadata'),
-            fetch('/api/device-metadata/tags')
+            fetch('/api/device-metadata/tags'),
+            fetch('/api/device-metadata/locations')
         ]);
 
         const data = await devicesResponse.json();
         const metadataData = await metadataResponse.json();
         const tagsData = await tagsResponse.json();
+        const locationsData = await locationsResponse.json();
 
         // Cache metadata
         if (metadataData.status === 'success' && metadataData.metadata) {
@@ -87,6 +109,12 @@ async function loadConnectedDevices() {
         if (tagsData.status === 'success' && Array.isArray(tagsData.tags)) {
             allTagsCache = tagsData.tags;
             console.log(`Loaded ${allTagsCache.length} unique tags for autocomplete`);
+        }
+
+        // Cache locations for autocomplete
+        if (locationsData.status === 'success' && Array.isArray(locationsData.locations)) {
+            allLocationsCache = locationsData.locations;
+            console.log(`Loaded ${allLocationsCache.length} unique locations for autocomplete`);
         }
 
         const tableDiv = document.getElementById('connectedDevicesTable');
@@ -626,6 +654,9 @@ function openDeviceEditModal(mac) {
 
     // Set up tag autocomplete
     setupTagAutocomplete();
+    
+    // Set up location autocomplete
+    setupLocationAutocomplete();
 }
 
 // Set up tag autocomplete for tags input field
