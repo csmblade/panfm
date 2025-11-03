@@ -79,13 +79,20 @@ class DeviceManager:
                 data = json.load(f)
 
             # Encrypt ONLY the api_key field for each device
+            # IMPORTANT: Check if already encrypted to prevent double encryption
+            from encryption import is_encrypted
             encrypted_devices = []
             for device in devices:
                 device_copy = device.copy()
                 if 'api_key' in device_copy and device_copy['api_key']:
                     try:
-                        device_copy['api_key'] = encrypt_string(device_copy['api_key'])
-                        debug(f"Successfully encrypted API key for device {device_copy.get('name', 'unknown')}")
+                        # Only encrypt if not already encrypted (prevent double encryption)
+                        if not is_encrypted(device_copy['api_key']):
+                            device_copy['api_key'] = encrypt_string(device_copy['api_key'])
+                            debug(f"Encrypted API key for device {device_copy.get('name', 'unknown')}")
+                        else:
+                            # Already encrypted, leave as-is
+                            debug(f"API key already encrypted for device {device_copy.get('name', 'unknown')}, skipping encryption")
                     except Exception as encrypt_err:
                         # Encryption failed - log the error
                         error(f"Failed to encrypt API key for device {device_copy.get('name', 'unknown')}: {str(encrypt_err)}")
