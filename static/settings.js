@@ -31,25 +31,51 @@ async function loadSettings() {
             // Monitored interface will be loaded from the selected device in updateDeviceSelector
         }
 
-        // Initialize vendor DB controls
+        // Initialize vendor DB controls (will load info automatically)
         initVendorDbControls();
 
-        // Initialize service port DB controls
+        // Initialize service port DB controls (will load info automatically)
         initServicePortDbControls();
         
-        // Initialize metadata export/import controls
+        // Initialize metadata export/import controls (non-blocking)
         initMetadataControls();
     } catch (error) {
         console.error('Error loading settings:', error);
+        // Even if there's an error, try to initialize DB controls
+        try {
+            initVendorDbControls();
+            initServicePortDbControls();
+        } catch (dbError) {
+            console.error('Error initializing database controls:', dbError);
+        }
     }
 }
 
 // Initialize device metadata export/import controls
 function initMetadataControls() {
-    const exportBtn = document.getElementById('exportMetadataBtn');
-    if (exportBtn && !exportBtn.hasAttribute('data-listener')) {
-        exportBtn.addEventListener('click', exportDeviceMetadata);
-        exportBtn.setAttribute('data-listener', 'true');
+    try {
+        const exportBtn = document.getElementById('exportMetadataBtn');
+        if (exportBtn && !exportBtn.hasAttribute('data-listener')) {
+            // Check if exportDeviceMetadata function exists (loaded from pages-connected-devices.js)
+            if (typeof exportDeviceMetadata === 'function') {
+                exportBtn.addEventListener('click', exportDeviceMetadata);
+                exportBtn.setAttribute('data-listener', 'true');
+            } else {
+                console.warn('exportDeviceMetadata function not available yet, will retry on button click');
+                // Set up a fallback that will work once the function is loaded
+                exportBtn.addEventListener('click', function() {
+                    if (typeof exportDeviceMetadata === 'function') {
+                        exportDeviceMetadata();
+                    } else {
+                        alert('Metadata export function not loaded. Please refresh the page.');
+                    }
+                });
+                exportBtn.setAttribute('data-listener', 'true');
+            }
+        }
+    } catch (error) {
+        console.error('Error initializing metadata controls:', error);
+        // Don't let this break the settings loading
     }
 }
 
@@ -317,22 +343,28 @@ async function uploadVendorDb() {
 }
 
 function initVendorDbControls() {
-    // Upload button
-    const uploadBtn = document.getElementById('uploadVendorDbBtn');
-    if (uploadBtn && !uploadBtn.hasAttribute('data-listener')) {
-        uploadBtn.addEventListener('click', uploadVendorDb);
-        uploadBtn.setAttribute('data-listener', 'true');
-    }
+    try {
+        // Upload button
+        const uploadBtn = document.getElementById('uploadVendorDbBtn');
+        if (uploadBtn && !uploadBtn.hasAttribute('data-listener')) {
+            uploadBtn.addEventListener('click', uploadVendorDb);
+            uploadBtn.setAttribute('data-listener', 'true');
+        }
 
-    // Refresh button
-    const refreshBtn = document.getElementById('refreshVendorDbInfoBtn');
-    if (refreshBtn && !refreshBtn.hasAttribute('data-listener')) {
-        refreshBtn.addEventListener('click', loadVendorDbInfo);
-        refreshBtn.setAttribute('data-listener', 'true');
-    }
+        // Refresh button
+        const refreshBtn = document.getElementById('refreshVendorDbInfoBtn');
+        if (refreshBtn && !refreshBtn.hasAttribute('data-listener')) {
+            refreshBtn.addEventListener('click', loadVendorDbInfo);
+            refreshBtn.setAttribute('data-listener', 'true');
+        }
 
-    // Load initial info
-    loadVendorDbInfo();
+        // Load initial info (only if elements exist)
+        if (document.getElementById('vendorDbStatus')) {
+            loadVendorDbInfo();
+        }
+    } catch (error) {
+        console.error('Error initializing vendor DB controls:', error);
+    }
 }
 
 // ============================================================================
@@ -348,16 +380,26 @@ async function loadServicePortDbInfo() {
         if (data.status === 'success') {
             const info = data.info;
 
-            document.getElementById('servicePortDbStatus').textContent = info.exists ? '✓ Loaded' : '✗ Not loaded';
-            document.getElementById('servicePortDbStatus').style.color = info.exists ? '#28a745' : '#dc3545';
-            document.getElementById('servicePortDbEntries').textContent = info.entries.toLocaleString();
-            document.getElementById('servicePortDbSize').textContent = `${info.size_mb} MB`;
-            document.getElementById('servicePortDbModified').textContent = info.modified;
+            const statusEl = document.getElementById('servicePortDbStatus');
+            const entriesEl = document.getElementById('servicePortDbEntries');
+            const sizeEl = document.getElementById('servicePortDbSize');
+            const modifiedEl = document.getElementById('servicePortDbModified');
+
+            if (statusEl) {
+                statusEl.textContent = info.exists ? '✓ Loaded' : '✗ Not loaded';
+                statusEl.style.color = info.exists ? '#28a745' : '#dc3545';
+            }
+            if (entriesEl) entriesEl.textContent = info.entries.toLocaleString();
+            if (sizeEl) sizeEl.textContent = `${info.size_mb} MB`;
+            if (modifiedEl) modifiedEl.textContent = info.modified;
         }
     } catch (error) {
         console.error('Error loading service port DB info:', error);
-        document.getElementById('servicePortDbStatus').textContent = 'Error';
-        document.getElementById('servicePortDbStatus').style.color = '#dc3545';
+        const statusEl = document.getElementById('servicePortDbStatus');
+        if (statusEl) {
+            statusEl.textContent = 'Error';
+            statusEl.style.color = '#dc3545';
+        }
     }
 }
 
@@ -440,22 +482,28 @@ async function uploadServicePortDb() {
 }
 
 function initServicePortDbControls() {
-    // Upload button
-    const uploadBtn = document.getElementById('uploadServicePortDbBtn');
-    if (uploadBtn && !uploadBtn.hasAttribute('data-listener')) {
-        uploadBtn.addEventListener('click', uploadServicePortDb);
-        uploadBtn.setAttribute('data-listener', 'true');
-    }
+    try {
+        // Upload button
+        const uploadBtn = document.getElementById('uploadServicePortDbBtn');
+        if (uploadBtn && !uploadBtn.hasAttribute('data-listener')) {
+            uploadBtn.addEventListener('click', uploadServicePortDb);
+            uploadBtn.setAttribute('data-listener', 'true');
+        }
 
-    // Refresh button
-    const refreshBtn = document.getElementById('refreshServicePortDbInfoBtn');
-    if (refreshBtn && !refreshBtn.hasAttribute('data-listener')) {
-        refreshBtn.addEventListener('click', loadServicePortDbInfo);
-        refreshBtn.setAttribute('data-listener', 'true');
-    }
+        // Refresh button
+        const refreshBtn = document.getElementById('refreshServicePortDbInfoBtn');
+        if (refreshBtn && !refreshBtn.hasAttribute('data-listener')) {
+            refreshBtn.addEventListener('click', loadServicePortDbInfo);
+            refreshBtn.setAttribute('data-listener', 'true');
+        }
 
-    // Load initial info
-    loadServicePortDbInfo();
+        // Load initial info (only if elements exist)
+        if (document.getElementById('servicePortDbStatus')) {
+            loadServicePortDbInfo();
+        }
+    } catch (error) {
+        console.error('Error initializing service port DB controls:', error);
+    }
 }
 
 // ============================================================================
