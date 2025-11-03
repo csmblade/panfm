@@ -49,6 +49,16 @@ init_metadata_file()
 # Pre-load metadata at startup for immediate availability
 load_metadata(use_cache=False)  # Load fresh at startup
 
+# Initialize MAC vendor and service port databases
+from config import load_vendor_database, load_service_port_database
+from logger import debug
+debug("Initializing MAC vendor database...")
+vendor_db = load_vendor_database()
+debug(f"MAC vendor database loaded with {len(vendor_db)} entries")
+debug("Initializing service port database...")
+service_db = load_service_port_database()
+debug(f"Service port database loaded with {len(service_db)} entries")
+
 # Check and fix encryption key permissions
 from encryption import check_key_permissions
 check_key_permissions()
