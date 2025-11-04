@@ -9,6 +9,10 @@
 
 A real-time monitoring dashboard for Palo Alto Networks firewalls with automated PAN-OS upgrades, content management, and multi-device support. This is a POC experiment to see how agentic AI can help bring ideas to life.
 
+<p align="center">
+  <img src="screenshot.png" alt="PANfm Dashboard Screenshot" width="800">
+</p>
+
 ## Quick Start
 
 ### Prerequisites
