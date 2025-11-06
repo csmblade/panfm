@@ -825,8 +825,8 @@ def get_throughput_data(device_id=None):
             # Get system logs (limit to max_logs) (from firewall_api_logs module)
             system_logs = get_system_logs(firewall_config, max_logs)
 
-            # Get interface statistics
-            interface_data = get_interface_stats()
+            # Get interface statistics (returns tuple: interfaces_list, total_errors, total_drops)
+            interface_stats_list, interface_errors, interface_drops = get_interface_stats()
 
             # Get top applications (from firewall_api_logs module)
             top_apps = get_top_applications(firewall_config, top_apps_count)
@@ -855,6 +855,45 @@ def get_throughput_data(device_id=None):
                     wan_speed = wan_data.get('speed')
                     debug(f"WAN IP for interface {wan_interface}: {wan_ip}, Speed: {wan_speed}")
 
+            # Get hostname and uptime (Phase 2 fields)
+            hostname = None
+            uptime_seconds = None
+            try:
+                cmd = "<show><system><info></info></system></show>"
+                params = {
+                    'type': 'op',
+                    'cmd': cmd,
+                    'key': api_key
+                }
+                response = api_request_get(base_url, params=params, verify=False, timeout=5)
+                if response.status_code == 200:
+                    root = ET.fromstring(response.text)
+                    hostname_elem = root.find('.//hostname')
+                    uptime_elem = root.find('.//uptime')
+                    if hostname_elem is not None and hostname_elem.text:
+                        hostname = hostname_elem.text
+                    if uptime_elem is not None and uptime_elem.text:
+                        # Parse uptime string (format: "X days, HH:MM:SS") into seconds
+                        uptime_str = uptime_elem.text
+                        try:
+                            # Example: "5 days, 12:34:56"
+                            parts = uptime_str.split(',')
+                            days = 0
+                            time_part = uptime_str
+                            if len(parts) == 2:
+                                # Has days
+                                days = int(parts[0].split()[0])
+                                time_part = parts[1].strip()
+                            # Parse HH:MM:SS
+                            time_parts = time_part.split(':')
+                            if len(time_parts) == 3:
+                                hours, minutes, seconds = map(int, time_parts)
+                                uptime_seconds = (days * 86400) + (hours * 3600) + (minutes * 60) + seconds
+                        except Exception as e:
+                            debug(f"Error parsing uptime string '{uptime_str}': {e}")
+            except Exception as e:
+                debug(f"Error fetching hostname/uptime: {e}")
+
             return {
                 'timestamp': datetime.utcnow().isoformat() + 'Z',  # Use UTC and add 'Z' suffix
                 'inbound_mbps': round(max(0, inbound_mbps), 2),
@@ -867,13 +906,19 @@ def get_throughput_data(device_id=None):
                 'cpu': resource_data,
                 'threats': threat_data,
                 'system_logs': system_logs,
-                'interfaces': interface_data,
+                'interfaces': interface_stats_list,  # For backward compatibility (UI uses this)
                 'top_applications': top_apps,
                 'license': license_info.get('license', {'expired': 0, 'licensed': 0}),
                 'api_stats': get_api_stats(),
-                'panos_version': panos_version,
+                'pan_os_version': panos_version,  # Changed from 'panos_version' to match Phase 2 schema
                 'wan_ip': wan_ip,
                 'wan_speed': wan_speed,
+                # Phase 2 fields for database storage
+                'interface_errors': interface_errors,
+                'interface_drops': interface_drops,
+                'interface_stats': interface_stats_list,
+                'hostname': hostname,
+                'uptime_seconds': uptime_seconds,
                 'status': 'success'
             }
         else:
