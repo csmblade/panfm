@@ -627,22 +627,30 @@ def get_device_version(device_id):
         return None
 
 
-def get_throughput_data():
+def get_throughput_data(device_id=None):
     """Fetch throughput data from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
 
     Returns:
         dict: Throughput data with status 'success' or 'error'
     """
-    debug("=== get_throughput_data called ===")
+    debug("=== get_throughput_data called (device_id=%s) ===", device_id)
 
     try:
         # Load settings to get match count and firewall config
         settings = load_settings()
         max_logs = settings.get('match_count', 5)
-        selected_device_id = settings.get('selected_device_id', '')
-        debug(f"Selected device from settings: {selected_device_id}")
 
-        firewall_ip, api_key, base_url = get_firewall_config()
+        # Use provided device_id or fall back to settings
+        if device_id is None:
+            device_id = settings.get('selected_device_id', '')
+            debug(f"No device_id provided, using selected device from settings: {device_id}")
+        else:
+            debug(f"Using provided device_id: {device_id}")
+
+        firewall_ip, api_key, base_url = get_firewall_config(device_id)
 
         # Check if no device is configured
         if not firewall_ip or not api_key or not base_url:
@@ -656,8 +664,8 @@ def get_throughput_data():
         # Get monitored interface and WAN interface from the device, not from settings
         monitored_interface = 'ethernet1/12'  # default
         wan_interface = ''  # default
-        if selected_device_id:
-            device = device_manager.get_device(selected_device_id)
+        if device_id:
+            device = device_manager.get_device(device_id)
             if device:
                 if device.get('monitored_interface'):
                     monitored_interface = device['monitored_interface']
@@ -669,7 +677,7 @@ def get_throughput_data():
         debug(f"WAN interface: {wan_interface}")
 
         # Use device ID as key for per-device stats, fallback to IP if no device ID
-        device_key = selected_device_id if selected_device_id else firewall_ip
+        device_key = device_id if device_id else firewall_ip
 
         # Query for interface statistics
         cmd = f"<show><counter><interface>{monitored_interface}</interface></counter></show>"

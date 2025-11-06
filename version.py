@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 1
+VERSION_PATCH = 2
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Database-First Architecture"
+VERSION_CODENAME = "Multi-Device Collection Fix"
 
 
 def get_version():
@@ -75,6 +75,24 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.2',
+        'codename': 'Multi-Device Collection Fix',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: get_throughput_data() now accepts device_id parameter',
+            'BUG: Collector was calling get_throughput_data(device_id) but function ignored the parameter',
+            'BUG: Function always used selected_device_id from settings, only collecting data for currently selected device',
+            'FIX: Added device_id parameter to get_throughput_data() with fallback to settings',
+            'FIX: Collector now properly collects data from ALL enabled devices, not just selected one',
+            'IMPACT: Multi-device environments now correctly populate database with all device data',
+            'IMPACT: Multiple browsers/machines now see updated data from any device',
+            'Modified files: firewall_api.py (added device_id parameter to get_throughput_data)',
+            'Modified files: version.py (bumped to v1.7.2)',
+            'This fixes the issue where different browsers showed no data for non-selected devices'
+        ]
+    },
     {
         'version': '1.7.1',
         'codename': 'Database-First Architecture',
