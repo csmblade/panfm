@@ -40,7 +40,6 @@ if errorlevel 1 (
     echo    Please start Docker Desktop and try again.
     echo    (Look for Docker Desktop icon in system tray)
     echo.
-    pause
     exit /b 1
 )
 echo    Success: Docker Desktop is running
@@ -65,7 +64,7 @@ if errorlevel 1 (
     echo    ERROR: Docker build failed!
     echo.
     echo    Check the error messages above.
-    pause
+    echo.
     exit /b 1
 )
 echo.
@@ -85,7 +84,6 @@ if errorlevel 1 (
     docker compose logs --tail=30
     echo    --------------------------------------------------------
     echo.
-    pause
     exit /b 1
 )
 echo.
@@ -102,8 +100,10 @@ if errorlevel 1 (
     echo    ERROR: Container stopped unexpectedly!
     echo.
     echo    Showing recent logs:
+    echo    --------------------------------------------------------
     docker compose logs --tail=30
-    pause
+    echo    --------------------------------------------------------
+    echo.
     exit /b 1
 )
 echo    Success: Container is running
@@ -165,4 +165,3 @@ echo   1. Fix the code
 echo   2. Run this script again: local-test.bat
 echo   3. Repeat until it works
 echo.
-pause
