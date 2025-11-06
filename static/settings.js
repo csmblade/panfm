@@ -244,12 +244,17 @@ function initSettingsTabs() {
                     if (vendorDbStatus && (!vendorDbStatus.textContent || vendorDbStatus.textContent === 'Loading...')) {
                         loadVendorDbInfo();
                     }
-                    
+
                     // Load service port DB info if not already loaded
                     const servicePortDbStatus = document.getElementById('servicePortDbStatus');
                     if (servicePortDbStatus && (!servicePortDbStatus.textContent || servicePortDbStatus.textContent === 'Loading...')) {
                         loadServicePortDbInfo();
                     }
+                }
+
+                // Load services status when services tab is opened
+                if (targetTab === 'services') {
+                    refreshServicesStatus();
                 }
             }
         });
@@ -737,6 +742,178 @@ function initializeTonyMode(enabled) {
         }, KEEPALIVE_INTERVAL);
 
         console.log('Tony Mode: Started session keepalive (every 10 minutes)');
+    }
+}
+
+/**
+ * Refresh services status (APScheduler + Database)
+ */
+async function refreshServicesStatus() {
+    try {
+        const response = await fetch('/api/services/status', {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            // Update APScheduler status
+            const schedulerState = document.getElementById('scheduler-state');
+            const schedulerJobs = document.getElementById('scheduler-jobs');
+            const schedulerLastRun = document.getElementById('scheduler-last-run');
+            const schedulerNextRun = document.getElementById('scheduler-next-run');
+
+            if (schedulerState) {
+                schedulerState.textContent = data.scheduler.state || 'Unknown';
+                schedulerState.style.color = (data.scheduler.state === 'Running') ? '#10b981' : '#ef4444';
+            }
+
+            if (schedulerJobs) {
+                schedulerJobs.textContent = data.scheduler.jobs_count || 0;
+            }
+
+            if (schedulerLastRun) {
+                if (data.scheduler.last_run) {
+                    const lastRun = new Date(data.scheduler.last_run);
+                    schedulerLastRun.textContent = formatRelativeTime(lastRun);
+                } else {
+                    schedulerLastRun.textContent = 'Never';
+                }
+            }
+
+            if (schedulerNextRun) {
+                if (data.jobs && data.jobs.length > 0 && data.jobs[0].next_run) {
+                    const nextRun = new Date(data.jobs[0].next_run);
+                    schedulerNextRun.textContent = formatRelativeTime(nextRun);
+                } else {
+                    schedulerNextRun.textContent = 'N/A';
+                }
+            }
+
+            // Update Database status
+            const databaseState = document.getElementById('database-state');
+            const databaseSize = document.getElementById('database-size');
+            const databaseSamples = document.getElementById('database-samples');
+            const databaseOldest = document.getElementById('database-oldest');
+
+            if (databaseState) {
+                databaseState.textContent = data.database.state || 'Unknown';
+                databaseState.style.color = (data.database.state === 'Connected') ? '#10b981' : '#ef4444';
+            }
+
+            if (databaseSize) {
+                databaseSize.textContent = data.database.size || '0 bytes';
+            }
+
+            if (databaseSamples) {
+                databaseSamples.textContent = (data.database.total_samples || 0).toLocaleString();
+            }
+
+            if (databaseOldest) {
+                if (data.database.oldest_sample) {
+                    const oldest = new Date(data.database.oldest_sample);
+                    databaseOldest.textContent = formatRelativeTime(oldest);
+                } else {
+                    databaseOldest.textContent = 'No data';
+                }
+            }
+
+            // Update jobs list
+            const jobsList = document.getElementById('jobs-list');
+            if (jobsList && data.jobs && data.jobs.length > 0) {
+                let jobsHtml = '<div style="display: grid; gap: 10px;">';
+                data.jobs.forEach(job => {
+                    const nextRun = job.next_run ? new Date(job.next_run) : null;
+                    jobsHtml += `
+                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #FA582D;">
+                            <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(job.name || job.id)}</div>
+                            <div style="font-size: 0.85em; color: #666;">
+                                <strong>Next Run:</strong> ${nextRun ? formatRelativeTime(nextRun) : 'N/A'}
+                            </div>
+                            <div style="font-size: 0.85em; color: #666;">
+                                <strong>Trigger:</strong> ${escapeHtml(job.trigger)}
+                            </div>
+                        </div>
+                    `;
+                });
+                jobsHtml += '</div>';
+                jobsList.innerHTML = jobsHtml;
+            } else if (jobsList) {
+                jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No scheduled jobs</div>';
+            }
+
+            // Update device stats
+            const deviceStats = document.getElementById('device-stats');
+            if (deviceStats && data.device_stats && data.device_stats.length > 0) {
+                let statsHtml = '<div style="display: grid; gap: 10px;">';
+                data.device_stats.forEach(stat => {
+                    const oldest = stat.oldest ? new Date(stat.oldest) : null;
+                    const newest = stat.newest ? new Date(stat.newest) : null;
+                    statsHtml += `
+                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #6366f1;">
+                            <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(stat.device_name)}</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85em; color: #666;">
+                                <div><strong>Samples:</strong> ${stat.sample_count.toLocaleString()}</div>
+                                <div><strong>Oldest:</strong> ${oldest ? formatRelativeTime(oldest) : 'N/A'}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                statsHtml += '</div>';
+                deviceStats.innerHTML = statsHtml;
+            } else if (deviceStats) {
+                deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No data collected yet</div>';
+            }
+
+        } else {
+            console.error('Failed to load services status:', data.message);
+        }
+
+    } catch (error) {
+        console.error('Error loading services status:', error);
+
+        // Show error state
+        const schedulerState = document.getElementById('scheduler-state');
+        const databaseState = document.getElementById('database-state');
+
+        if (schedulerState) {
+            schedulerState.textContent = 'Error';
+            schedulerState.style.color = '#ef4444';
+        }
+
+        if (databaseState) {
+            databaseState.textContent = 'Error';
+            databaseState.style.color = '#ef4444';
+        }
+    }
+}
+
+/**
+ * Format relative time (e.g., "2 minutes ago", "in 5 minutes")
+ */
+function formatRelativeTime(date) {
+    const now = new Date();
+    const diffMs = date - now;
+    const diffSecs = Math.abs(Math.floor(diffMs / 1000));
+    const isPast = diffMs < 0;
+
+    if (diffSecs < 60) {
+        return isPast ? 'Just now' : 'In a few seconds';
+    } else if (diffSecs < 3600) {
+        const mins = Math.floor(diffSecs / 60);
+        return isPast ? `${mins} min${mins !== 1 ? 's' : ''} ago` : `in ${mins} min${mins !== 1 ? 's' : ''}`;
+    } else if (diffSecs < 86400) {
+        const hours = Math.floor(diffSecs / 3600);
+        return isPast ? `${hours} hour${hours !== 1 ? 's' : ''} ago` : `in ${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else {
+        const days = Math.floor(diffSecs / 86400);
+        return isPast ? `${days} day${days !== 1 ? 's' : ''} ago` : `in ${days} day${days !== 1 ? 's' : ''}`;
     }
 }
 

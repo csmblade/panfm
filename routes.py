@@ -583,6 +583,134 @@ def register_routes(app, csrf, limiter):
         """Version information endpoint (public - no auth required)"""
         return jsonify(get_version_info())
 
+    @app.route('/api/services/status')
+    @limiter.limit("600 per hour")
+    @login_required
+    def services_status():
+        """API endpoint for system services status (APScheduler + Database)"""
+        from throughput_collector import get_collector
+        import os
+
+        debug("=== Services Status API endpoint called ===")
+
+        try:
+            result = {
+                'status': 'success',
+                'scheduler': {},
+                'database': {},
+                'jobs': [],
+                'device_stats': []
+            }
+
+            # Get APScheduler status
+            collector = get_collector()
+            if collector is not None:
+                scheduler = collector.scheduler
+                result['scheduler']['state'] = 'Running' if scheduler.running else 'Stopped'
+                result['scheduler']['jobs_count'] = len(scheduler.get_jobs())
+
+                # Get job details
+                jobs = scheduler.get_jobs()
+                for job in jobs:
+                    job_info = {
+                        'id': job.id,
+                        'name': job.name,
+                        'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
+                        'trigger': str(job.trigger)
+                    }
+                    result['jobs'].append(job_info)
+
+                # Get last run time from storage
+                storage = collector.storage
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+
+                if device_id:
+                    latest_sample = storage.get_latest_sample(device_id, max_age_seconds=7200)  # 2 hours
+                    if latest_sample:
+                        result['scheduler']['last_run'] = latest_sample['timestamp']
+                    else:
+                        result['scheduler']['last_run'] = None
+                else:
+                    result['scheduler']['last_run'] = None
+            else:
+                result['scheduler']['state'] = 'Not Initialized'
+                result['scheduler']['jobs_count'] = 0
+
+            # Get Database status
+            collector = get_collector()
+            if collector is not None:
+                storage = collector.storage
+                db_path = storage.db_path
+
+                if os.path.exists(db_path):
+                    # Get database file size
+                    db_size_bytes = os.path.getsize(db_path)
+                    if db_size_bytes < 1024:
+                        db_size_str = f"{db_size_bytes} bytes"
+                    elif db_size_bytes < 1024 * 1024:
+                        db_size_str = f"{db_size_bytes / 1024:.2f} KB"
+                    else:
+                        db_size_str = f"{db_size_bytes / (1024 * 1024):.2f} MB"
+
+                    result['database']['state'] = 'Connected'
+                    result['database']['size'] = db_size_str
+                    result['database']['path'] = db_path
+
+                    # Get total sample count
+                    import sqlite3
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM throughput_samples")
+                    total_samples = cursor.fetchone()[0]
+                    result['database']['total_samples'] = total_samples
+
+                    # Get oldest sample timestamp
+                    cursor.execute("SELECT MIN(timestamp) FROM throughput_samples")
+                    oldest = cursor.fetchone()[0]
+                    result['database']['oldest_sample'] = oldest
+
+                    # Get per-device statistics
+                    cursor.execute("""
+                        SELECT device_id, COUNT(*) as sample_count, MIN(timestamp) as oldest, MAX(timestamp) as newest
+                        FROM throughput_samples
+                        GROUP BY device_id
+                        ORDER BY sample_count DESC
+                    """)
+                    device_rows = cursor.fetchall()
+
+                    from device_manager import device_manager
+                    devices = device_manager.load_devices()
+                    device_map = {d['id']: d['name'] for d in devices}
+
+                    for row in device_rows:
+                        device_id, sample_count, oldest, newest = row
+                        device_name = device_map.get(device_id, device_id)
+                        result['device_stats'].append({
+                            'device_id': device_id,
+                            'device_name': device_name,
+                            'sample_count': sample_count,
+                            'oldest': oldest,
+                            'newest': newest
+                        })
+
+                    conn.close()
+                else:
+                    result['database']['state'] = 'File Not Found'
+                    result['database']['size'] = '0 bytes'
+                    result['database']['path'] = db_path
+            else:
+                result['database']['state'] = 'Not Initialized'
+
+            return jsonify(result)
+
+        except Exception as e:
+            exception(f"Failed to get services status: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
     @app.route('/api/system-logs')
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
