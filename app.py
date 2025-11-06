@@ -10,7 +10,7 @@ from flask_limiter.util import get_remote_address
 from flask_apscheduler import APScheduler
 import urllib3
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 # Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -88,11 +88,12 @@ if collection_enabled:
         id='collect_throughput',
         func=collector.collect_all_devices,
         trigger='interval',
-        seconds=refresh_interval
+        seconds=refresh_interval,
+        next_run_time=datetime.now()  # Run immediately on startup
     )
 
     scheduler.start()
-    info("Throughput collector started successfully (%d-second interval)", refresh_interval)
+    info("Throughput collector started successfully (%d-second interval, first run immediate)", refresh_interval)
 else:
     info("Throughput collection disabled in settings")
 
