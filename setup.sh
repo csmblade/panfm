@@ -166,6 +166,64 @@ else
     echo "✓ service_port_db.json already exists"
 fi
 
+# Create throughput_history.db if it doesn't exist
+if [ ! -f "throughput_history.db" ]; then
+    echo "Creating throughput_history.db..."
+
+    # Create SQLite database with schema using Python
+    python3 -c "
+import sqlite3
+import os
+
+# Create database file
+db_path = 'throughput_history.db'
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+# Create throughput_samples table (matches throughput_storage.py schema)
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS throughput_samples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        timestamp DATETIME NOT NULL,
+        inbound_mbps REAL,
+        outbound_mbps REAL,
+        total_mbps REAL,
+        inbound_pps INTEGER,
+        outbound_pps INTEGER,
+        total_pps INTEGER,
+        sessions_active INTEGER,
+        sessions_tcp INTEGER,
+        sessions_udp INTEGER,
+        sessions_icmp INTEGER,
+        cpu_data_plane INTEGER,
+        cpu_mgmt_plane INTEGER,
+        memory_used_pct INTEGER
+    )
+''')
+
+# Create indexes for efficient queries
+cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_device_timestamp
+    ON throughput_samples(device_id, timestamp)
+''')
+
+cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_timestamp
+    ON throughput_samples(timestamp)
+''')
+
+conn.commit()
+conn.close()
+
+print('Created throughput_history.db with schema')
+" 2>/dev/null || touch throughput_history.db
+
+    echo "✓ throughput_history.db created"
+else
+    echo "✓ throughput_history.db already exists"
+fi
+
 # Create data directory if it doesn't exist
 if [ ! -d "data" ]; then
     echo "Creating data directory..."

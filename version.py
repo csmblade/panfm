@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 5
+VERSION_PATCH = 6
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Chart Preloading"
+VERSION_CODENAME = "Database Persistence Fix"
 
 
 def get_version():
@@ -75,6 +75,34 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.6',
+        'codename': 'Database Persistence Fix',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: throughput_history.db now persists across Docker restarts',
+            'BUG: Database file created inside container, not on host filesystem',
+            'BUG: No volume mount in docker-compose.yml for throughput_history.db',
+            'BUG: Every Docker restart = empty database = blank chart on page load',
+            'BUG: preloadChartData() found no historical data after restart',
+            'FIX: Added throughput_history.db initialization to setup.sh',
+            'FIX: Creates SQLite database with proper schema (throughput_samples table)',
+            'FIX: Creates indexes (idx_device_timestamp, idx_timestamp) for performance',
+            'FIX: Added volume mount in docker-compose.yml for database persistence',
+            'IMPACT: Database now survives Docker restarts and rebuilds',
+            'IMPACT: Historical data accumulates over time instead of resetting',
+            'IMPACT: Chart preloading works correctly on new browser sessions',
+            'IMPACT: Users see data continuity across container lifecycle',
+            'Implementation: Python script in setup.sh creates database with schema',
+            'Implementation: Volume mount maps ./throughput_history.db to /app/throughput_history.db',
+            'Modified files: setup.sh (added database initialization, 52 lines)',
+            'Modified files: docker-compose.yml (added volume mount)',
+            'Modified files: version.py (bumped to v1.7.6)',
+            'User action required: Run ./setup.sh before docker compose up',
+            'This fixes the root cause of blank graphs in Docker deployments'
+        ]
+    },
     {
         'version': '1.7.5',
         'codename': 'Chart Preloading',

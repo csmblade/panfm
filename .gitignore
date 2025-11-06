@@ -55,6 +55,7 @@ security.log.*
 *.xml
 *_output.xml
 encryption.key
+throughput_history.db
 
 # Temporary/debug files
 logs.txt
