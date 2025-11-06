@@ -27,13 +27,13 @@ echo   3. Start fresh container on port 3000
 echo   4. Show logs
 echo   5. Open browser to http://localhost:3000
 echo.
-echo Press Ctrl+C to cancel, or
-pause
+echo Starting in 3 seconds... (Press Ctrl+C to cancel)
+timeout /t 3 /nobreak >nul
 echo.
 
 REM Check if Docker Desktop is running
 echo [1/6] Checking Docker Desktop...
-docker info >nul 2>&1
+docker version >nul 2>&1
 if errorlevel 1 (
     echo    ERROR: Docker Desktop is not running!
     echo.
@@ -58,27 +58,37 @@ echo.
 REM Rebuild Docker image with latest code
 echo [3/6] Building Docker image with your changes...
 echo    (This may take 1-2 minutes on first run)
-docker compose build
+echo.
+docker compose build --progress=plain
 if errorlevel 1 (
+    echo.
     echo    ERROR: Docker build failed!
     echo.
     echo    Check the error messages above.
     pause
     exit /b 1
 )
+echo.
 echo    Success: Image built
 echo.
 
 REM Start container
 echo [4/6] Starting container...
+echo.
 docker compose up -d
 if errorlevel 1 (
+    echo.
     echo    ERROR: Container failed to start!
     echo.
+    echo    Showing recent logs:
+    echo    --------------------------------------------------------
     docker compose logs --tail=30
+    echo    --------------------------------------------------------
+    echo.
     pause
     exit /b 1
 )
+echo.
 echo    Success: Container started
 echo.
 
