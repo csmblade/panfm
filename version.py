@@ -9,17 +9,17 @@ PATCH: Bug fixes, small improvements, documentation updates
 
 # Current version
 VERSION_MAJOR = 1
-VERSION_MINOR = 6
-VERSION_PATCH = 3
+VERSION_MINOR = 7
+VERSION_PATCH = 0
 
 # Build metadata (optional)
-VERSION_BUILD = "20251103"  # YYYYMMDD format
+VERSION_BUILD = "20251106"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "DHCP Monitoring"
+VERSION_CODENAME = "Historical Analytics"
 
 
 def get_version():
@@ -75,6 +75,38 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.0',
+        'codename': 'Historical Analytics',
+        'date': '2025-11-06',
+        'type': 'minor',
+        'changes': [
+            'NEW FEATURE: Historical network throughput graphing with 90-day retention',
+            'SQLite-based time-series storage (~10.4 MB per device for 90 days)',
+            'Background data collection via APScheduler (15-second intervals)',
+            'New backend modules: throughput_storage.py (390 lines), throughput_collector.py (170 lines)',
+            'NEW: CSV export functionality - download historical data with all metrics',
+            'NEW: Statistics endpoint - min/max/avg calculations for time ranges',
+            'NEW: Interactive statistics panel with detailed metrics',
+            'New API endpoints: GET /api/throughput/history, /history/export, /history/stats',
+            'Time range support: 1h, 6h, 24h, 7d, 30d, 90d',
+            'Auto-resolution: raw (<6h), hourly (week), daily (>7d)',
+            'Export includes: timestamp, throughput (Mbps/PPS), sessions, CPU, memory',
+            'Statistics show: min/max/avg for inbound/outbound/total throughput',
+            'UI: Time range selector with 7 preset buttons',
+            'UI: Export CSV button (green) and Stats button (purple) appear in historical mode',
+            'UI: Collapsible statistics panel with color-coded metrics',
+            'UI: Auto-reset to real-time when device changes',
+            'Integrated with backup/restore system (throughput_db field in backups)',
+            'New settings: throughput_retention_days (90), throughput_collection_enabled (true)',
+            'Automatic cleanup of old data based on retention policy',
+            'New dependency: Flask-APScheduler==1.13.1',
+            'Modified files: app.py, config.py, routes.py, backup_restore.py, requirements.txt',
+            'Modified files: templates/index.html, static/app.js',
+            'Database file: throughput_history.db (auto-created, included in backups)',
+            'Rate limits: history (600/hour), export (100/hour), stats (600/hour)'
+        ]
+    },
     {
         'version': '1.6.3',
         'codename': 'DHCP Monitoring',

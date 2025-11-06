@@ -7,6 +7,7 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_apscheduler import APScheduler
 import urllib3
 import os
 from datetime import timedelta
@@ -62,6 +63,37 @@ debug(f"Service port database loaded with {len(service_db)} entries")
 # Check and fix encryption key permissions
 from encryption import check_key_permissions
 check_key_permissions()
+
+# Initialize throughput collector
+from config import THROUGHPUT_DB_FILE, load_settings
+from throughput_collector import init_collector
+from logger import info
+
+settings = load_settings()
+retention_days = settings.get('throughput_retention_days', 90)
+collection_enabled = settings.get('throughput_collection_enabled', True)
+
+if collection_enabled:
+    info("Initializing throughput collector with %d-day retention", retention_days)
+    collector = init_collector(THROUGHPUT_DB_FILE, retention_days)
+
+    # Initialize APScheduler
+    scheduler = APScheduler()
+    app.config['SCHEDULER_API_ENABLED'] = False  # Disable scheduler API endpoints
+    scheduler.init_app(app)
+
+    # Add collection job (runs every 15 seconds)
+    scheduler.add_job(
+        id='collect_throughput',
+        func=collector.collect_all_devices,
+        trigger='interval',
+        seconds=15
+    )
+
+    scheduler.start()
+    info("Throughput collector started successfully (15-second interval)")
+else:
+    info("Throughput collection disabled in settings")
 
 # Register all routes
 from routes import register_routes

@@ -750,6 +750,30 @@ async function init() {
         logoutBtn.addEventListener('click', handleLogout);
     }
 
+    // Set up time range buttons
+    const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+    timeRangeButtons.forEach(btn => {
+        btn.addEventListener('click', () => handleTimeRangeChange(btn.dataset.range));
+    });
+
+    // Set up export and stats buttons
+    const exportBtn = document.getElementById('exportHistoryBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportHistoricalData);
+    }
+
+    const toggleStatsBtn = document.getElementById('toggleStatsBtn');
+    if (toggleStatsBtn) {
+        toggleStatsBtn.addEventListener('click', toggleStatistics);
+    }
+
+    const closeStatsBtn = document.getElementById('closeStatsBtn');
+    if (closeStatsBtn) {
+        closeStatsBtn.addEventListener('click', () => {
+            document.getElementById('statsPanel').style.display = 'none';
+        });
+    }
+
     // Initial fetch
     fetchThroughputData();
 
@@ -759,6 +783,159 @@ async function init() {
 
 // Start the app when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
+
+// ============================================================================
+// Historical Throughput Functionality
+// ============================================================================
+
+let currentTimeRange = 'realtime';
+
+/**
+ * Handle time range button click
+ */
+async function handleTimeRangeChange(range) {
+    console.log('Time range changed to:', range);
+    currentTimeRange = range;
+
+    // Update button styles
+    document.querySelectorAll('.time-range-btn').forEach(btn => {
+        if (btn.dataset.range === range) {
+            btn.style.background = 'linear-gradient(135deg, #FA582D 0%, #FF7A55 100%)';
+        } else {
+            btn.style.background = '#4a5568';
+        }
+    });
+
+    if (range === 'realtime') {
+        // Resume real-time updates
+        if (!updateIntervalId) {
+            updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
+        }
+        fetchThroughputData();
+
+        // Hide export and stats buttons in real-time mode
+        document.getElementById('exportHistoryBtn').style.display = 'none';
+        document.getElementById('toggleStatsBtn').style.display = 'none';
+        document.getElementById('statsPanel').style.display = 'none';
+    } else {
+        // Stop real-time updates
+        if (updateIntervalId) {
+            clearInterval(updateIntervalId);
+            updateIntervalId = null;
+        }
+        // Load historical data
+        await loadHistoricalThroughput(range);
+    }
+}
+
+/**
+ * Load historical throughput data
+ */
+async function loadHistoricalThroughput(range) {
+    try {
+        console.log('Loading historical data for range:', range);
+
+        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        if (!deviceId) {
+            console.warn('No device selected');
+            return;
+        }
+
+        const response = await fetch(`/api/throughput/history?device_id=${deviceId}&range=${range}`);
+        const data = await response.json();
+
+        if (data.status === 'success' && data.samples) {
+            console.log(`Loaded ${data.samples.length} historical samples (${data.resolution} resolution)`);
+
+            // Clear existing chart data
+            throughputChart.data.labels = [];
+            throughputChart.data.datasets[0].data = [];
+            throughputChart.data.datasets[1].data = [];
+            throughputChart.data.datasets[2].data = [];
+
+            // Add historical data to chart
+            data.samples.forEach(sample => {
+                const timestamp = new Date(sample.timestamp).toLocaleTimeString();
+                throughputChart.data.labels.push(timestamp);
+                throughputChart.data.datasets[0].data.push(sample.inbound_mbps || 0);
+                throughputChart.data.datasets[1].data.push(sample.outbound_mbps || 0);
+                throughputChart.data.datasets[2].data.push(sample.total_mbps || 0);
+            });
+
+            throughputChart.update();
+
+            // Show export and stats buttons when viewing historical data
+            document.getElementById('exportHistoryBtn').style.display = 'block';
+            document.getElementById('toggleStatsBtn').style.display = 'block';
+
+            // Auto-load statistics
+            loadHistoricalStats(range);
+        } else {
+            console.error('Failed to load historical data:', data.message);
+        }
+    } catch (error) {
+        console.error('Error loading historical data:', error);
+    }
+}
+
+/**
+ * Load historical statistics
+ */
+async function loadHistoricalStats(range) {
+    try {
+        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        if (!deviceId) return;
+
+        const response = await fetch(`/api/throughput/history/stats?device_id=${deviceId}&range=${range}`);
+        const data = await response.json();
+
+        if (data.status === 'success' && data.stats) {
+            // Update stats display
+            document.getElementById('statsInboundMin').textContent = data.stats.inbound_mbps.min;
+            document.getElementById('statsInboundMax').textContent = data.stats.inbound_mbps.max;
+            document.getElementById('statsInboundAvg').textContent = data.stats.inbound_mbps.avg;
+
+            document.getElementById('statsOutboundMin').textContent = data.stats.outbound_mbps.min;
+            document.getElementById('statsOutboundMax').textContent = data.stats.outbound_mbps.max;
+            document.getElementById('statsOutboundAvg').textContent = data.stats.outbound_mbps.avg;
+
+            document.getElementById('statsTotalMin').textContent = data.stats.total_mbps.min;
+            document.getElementById('statsTotalMax').textContent = data.stats.total_mbps.max;
+            document.getElementById('statsTotalAvg').textContent = data.stats.total_mbps.avg;
+
+            document.getElementById('statsSampleCount').textContent = data.sample_count.toLocaleString();
+        }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+    }
+}
+
+/**
+ * Toggle statistics panel
+ */
+function toggleStatistics() {
+    const panel = document.getElementById('statsPanel');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+/**
+ * Export historical data to CSV
+ */
+function exportHistoricalData() {
+    const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+    if (!deviceId) {
+        console.warn('No device selected');
+        return;
+    }
+
+    // Open export URL in new window to trigger download
+    const exportUrl = `/api/throughput/history/export?device_id=${deviceId}&range=${currentTimeRange}`;
+    window.open(exportUrl, '_blank');
+}
 
 // ============================================================================
 // Logout Functionality
@@ -1054,6 +1231,14 @@ function initPageNavigation() {
  */
 function refreshAllDataForDevice() {
     console.log('=== refreshAllDataForDevice called ===');
+
+    // ========================================================================
+    // 0. RESET TIME RANGE TO REAL-TIME
+    // ========================================================================
+    if (currentTimeRange !== 'realtime') {
+        console.log('Resetting time range to real-time on device change');
+        handleTimeRangeChange('realtime');
+    }
 
     // ========================================================================
     // 1. CLEAR MAIN CHART DATA

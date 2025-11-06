@@ -1,12 +1,14 @@
 """
 Backup & Restore Manager for PANfm
-Handles comprehensive site-wide backup and restore of Settings, Devices, and Metadata.
+Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, and Throughput History.
 All backups are encrypted and timestamped.
 """
 import os
 import json
+import shutil
+import base64
 from datetime import datetime
-from config import load_settings, save_settings, SETTINGS_FILE
+from config import load_settings, save_settings, SETTINGS_FILE, THROUGHPUT_DB_FILE
 from device_manager import device_manager
 from device_metadata import load_metadata, save_metadata, check_migration_needed, migrate_global_to_per_device
 from logger import debug, info, warning, error, exception
@@ -14,7 +16,7 @@ from logger import debug, info, warning, error, exception
 
 def create_full_backup():
     """
-    Create comprehensive backup of Settings, Devices, Metadata, and Encryption Key.
+    Create comprehensive backup of Settings, Devices, Metadata, Throughput History, and Encryption Key.
 
     SECURITY WARNING: The backup includes the encryption key, which allows decryption
     of all sensitive data. Backup files must be stored securely (encrypted drive,
@@ -23,12 +25,13 @@ def create_full_backup():
     Returns:
         dict: Backup dictionary with structure:
               {
-                  'version': '1.6.1',
+                  'version': '1.6.0',
                   'timestamp': 'ISO-8601 timestamp',
                   'encryption_key': 'base64-encoded key',  # SENSITIVE
                   'settings': {...},
                   'devices': {...},
-                  'metadata': {...}
+                  'metadata': {...},
+                  'throughput_db': 'base64-encoded SQLite database'  # NEW in v1.6.0
               }
         None: On error
     """
@@ -57,20 +60,35 @@ def create_full_backup():
         debug(f"Loaded metadata")
 
         # Load encryption key (CRITICAL for restore to work)
-        import base64
         from encryption import load_key
         encryption_key = load_key()
         encryption_key_b64 = base64.b64encode(encryption_key).decode('utf-8')
         debug("Included encryption key in backup for restore compatibility")
 
+        # Load throughput database (NEW in v1.6.0)
+        throughput_db_b64 = None
+        if os.path.exists(THROUGHPUT_DB_FILE):
+            try:
+                with open(THROUGHPUT_DB_FILE, 'rb') as f:
+                    throughput_db_bytes = f.read()
+                throughput_db_b64 = base64.b64encode(throughput_db_bytes).decode('utf-8')
+                db_size_mb = len(throughput_db_bytes) / (1024 * 1024)
+                debug(f"Included throughput database in backup ({db_size_mb:.2f} MB)")
+            except Exception as e:
+                warning(f"Failed to include throughput database in backup: {str(e)}")
+                # Continue without throughput DB - not critical
+        else:
+            debug("Throughput database not found, skipping")
+
         # Create backup structure
         backup = {
-            'version': '1.6.1',
+            'version': '1.6.0',
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'encryption_key': encryption_key_b64,  # CRITICAL: Required for restore
             'settings': settings,
             'devices': devices_data,
-            'metadata': metadata
+            'metadata': metadata,
+            'throughput_db': throughput_db_b64  # NEW: Historical throughput data
         }
 
         info("Successfully created full backup")
@@ -80,7 +98,7 @@ def create_full_backup():
         return None
 
 
-def restore_from_backup(backup_data, restore_settings=True, restore_devices=True, restore_metadata=True):
+def restore_from_backup(backup_data, restore_settings=True, restore_devices=True, restore_metadata=True, restore_throughput_db=True):
     """
     Restore site configuration from backup.
 
@@ -89,16 +107,17 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         restore_settings (bool): Whether to restore settings
         restore_devices (bool): Whether to restore devices
         restore_metadata (bool): Whether to restore metadata
+        restore_throughput_db (bool): Whether to restore throughput database (NEW in v1.6.0)
 
     Returns:
         dict: Result with structure:
               {
                   'success': bool,
-                  'restored': ['settings', 'devices', 'metadata'],
+                  'restored': ['settings', 'devices', 'metadata', 'throughput_db'],
                   'errors': ['error messages if any']
               }
     """
-    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata})")
+    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata}, throughput_db={restore_throughput_db})")
 
     result = {
         'success': True,
@@ -211,6 +230,23 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                 result['errors'].append(f"Metadata restore error: {str(e)}")
                 exception(f"Failed to restore metadata: {str(e)}")
 
+        # Restore throughput database (NEW in v1.6.0)
+        if restore_throughput_db and 'throughput_db' in backup_data and backup_data['throughput_db']:
+            try:
+                # Decode base64 database file
+                throughput_db_bytes = base64.b64decode(backup_data['throughput_db'])
+
+                # Write to file
+                with open(THROUGHPUT_DB_FILE, 'wb') as f:
+                    f.write(throughput_db_bytes)
+
+                db_size_mb = len(throughput_db_bytes) / (1024 * 1024)
+                result['restored'].append('throughput_db')
+                info(f"Successfully restored throughput database ({db_size_mb:.2f} MB)")
+            except Exception as e:
+                result['errors'].append(f"Throughput database restore error: {str(e)}")
+                exception(f"Failed to restore throughput database: {str(e)}")
+
         # Overall success if no errors
         if result['errors']:
             result['success'] = False
@@ -314,8 +350,10 @@ def get_backup_info(backup_data):
                   'has_settings': bool,
                   'has_devices': bool,
                   'has_metadata': bool,
+                  'has_throughput_db': bool,  # NEW in v1.6.0
                   'device_count': int,
-                  'metadata_count': int
+                  'metadata_count': int,
+                  'throughput_db_size_mb': float  # NEW in v1.6.0
               }
     """
     debug("Getting backup information")
@@ -326,9 +364,17 @@ def get_backup_info(backup_data):
             'has_settings': 'settings' in backup_data,
             'has_devices': 'devices' in backup_data,
             'has_metadata': 'metadata' in backup_data,
+            'has_throughput_db': 'throughput_db' in backup_data and backup_data['throughput_db'],
             'device_count': 0,
-            'metadata_count': 0
+            'metadata_count': 0,
+            'throughput_db_size_mb': 0.0
         }
+
+        # Calculate throughput database size
+        if info_dict['has_throughput_db']:
+            throughput_db_b64 = backup_data['throughput_db']
+            db_bytes = base64.b64decode(throughput_db_b64)
+            info_dict['throughput_db_size_mb'] = round(len(db_bytes) / (1024 * 1024), 2)
 
         # Count devices
         if 'devices' in backup_data and isinstance(backup_data['devices'], dict):

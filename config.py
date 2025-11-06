@@ -20,6 +20,7 @@ SERVICE_PORT_DB_FILE = os.path.join(os.path.dirname(__file__), 'service_port_db.
 AUTH_FILE = os.path.join(os.path.dirname(__file__), 'auth.json')
 METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
 SECURITY_LOG_FILE = os.path.join(os.path.dirname(__file__), 'security.log')
+THROUGHPUT_DB_FILE = os.path.join(os.path.dirname(__file__), 'throughput_history.db')
 
 # Global caches for vendor and service port databases
 _vendor_db_cache = None
@@ -34,7 +35,9 @@ DEFAULT_SETTINGS = {
     'selected_device_id': '',
     'monitored_interface': 'ethernet1/12',
     'tony_mode': False,
-    'timezone': 'UTC'  # Default timezone for displaying times
+    'timezone': 'UTC',  # Default timezone for displaying times
+    'throughput_retention_days': 90,  # Historical throughput data retention (90 days)
+    'throughput_collection_enabled': True  # Enable/disable background collection
 }
 
 # Lazy import to avoid circular dependency
