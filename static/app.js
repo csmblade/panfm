@@ -707,6 +707,58 @@ function animateValue(element, start, end, duration) {
     }, 16);
 }
 
+/**
+ * Preload recent historical data to populate chart on page load
+ * Queries last 30 minutes of data from database to avoid empty chart
+ */
+async function preloadChartData() {
+    try {
+        console.log('Preloading recent historical data for chart...');
+
+        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        if (!deviceId) {
+            console.warn('No device selected for preload, skipping...');
+            return;
+        }
+
+        // Query last 30 minutes of data (should give us MAX_DATA_POINTS worth)
+        const response = await fetch(`/api/throughput/history?device_id=${deviceId}&range=30m`);
+        const data = await response.json();
+
+        if (data.status === 'success' && data.samples && data.samples.length > 0) {
+            console.log(`Preloaded ${data.samples.length} historical samples`);
+
+            // Clear existing data
+            chartData.labels = [];
+            chartData.inbound = [];
+            chartData.outbound = [];
+            chartData.total = [];
+
+            // Take only the last MAX_DATA_POINTS samples
+            const samplesToUse = data.samples.slice(-MAX_DATA_POINTS);
+
+            // Populate chart data arrays
+            samplesToUse.forEach(sample => {
+                const timestamp = new Date(sample.timestamp).toLocaleTimeString();
+                chartData.labels.push(timestamp);
+                chartData.inbound.push(sample.inbound_mbps || 0);
+                chartData.outbound.push(sample.outbound_mbps || 0);
+                chartData.total.push(sample.total_mbps || 0);
+            });
+
+            // Update chart with preloaded data
+            chart.update();
+
+            console.log(`Chart initialized with ${chartData.labels.length} historical data points`);
+        } else {
+            console.log('No historical data available for preload');
+        }
+    } catch (error) {
+        console.error('Error preloading chart data:', error);
+        // Continue with empty chart if preload fails
+    }
+}
+
 // Initialize the application
 let isInitialized = false;
 async function init() {
@@ -773,6 +825,9 @@ async function init() {
             document.getElementById('statsPanel').style.display = 'none';
         });
     }
+
+    // Preload recent historical data to populate chart
+    await preloadChartData();
 
     // Initial fetch
     fetchThroughputData();

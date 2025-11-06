@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 4
+VERSION_PATCH = 5
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Auto-Select Device Fix"
+VERSION_CODENAME = "Chart Preloading"
 
 
 def get_version():
@@ -75,6 +75,30 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.5',
+        'codename': 'Chart Preloading',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: Chart now preloads with recent historical data on page load',
+            'BUG: Opening new browser showed empty chart starting from zero',
+            'BUG: chartData arrays initialized empty, only filled as new data arrived',
+            'BUG: User had to wait for MAX_DATA_POINTS cycles before seeing useful chart',
+            'FIX: Added preloadChartData() function to load last 30 data points from database',
+            'FIX: Queries /api/throughput/history?range=30m on page load',
+            'FIX: Populates chartData.labels, inbound, outbound, total arrays before polling starts',
+            'IMPACT: New browser sessions immediately show recent throughput history',
+            'IMPACT: Chart appears populated instead of empty on first load',
+            'IMPACT: Better user experience - no waiting for data to accumulate',
+            'Implementation: preloadChartData() called before fetchThroughputData() in init()',
+            'Takes last MAX_DATA_POINTS (30) samples from historical query',
+            'Graceful fallback: If no data available, continues with empty chart',
+            'Modified files: static/app.js (added preloadChartData function, 47 lines)',
+            'Modified files: version.py (bumped to v1.7.5)',
+            'This completes the database-first architecture with full chart preloading'
+        ]
+    },
     {
         'version': '1.7.4',
         'codename': 'Auto-Select Device Fix',
