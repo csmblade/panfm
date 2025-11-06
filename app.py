@@ -72,7 +72,7 @@ from logger import info
 settings = load_settings()
 retention_days = settings.get('throughput_retention_days', 90)
 collection_enabled = settings.get('throughput_collection_enabled', True)
-refresh_interval = settings.get('refresh_interval', 15)  # Default 15 seconds
+refresh_interval = settings.get('refresh_interval', 60)  # Default 60 seconds (Phase 2)
 
 if collection_enabled:
     info("Initializing throughput collector with %d-day retention", retention_days)

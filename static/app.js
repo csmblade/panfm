@@ -1,5 +1,5 @@
 // Configuration (will be loaded from settings)
-let UPDATE_INTERVAL = 5000; // Update every 5 seconds (default)
+let UPDATE_INTERVAL = 60000; // Update every 60 seconds (Phase 2: database-first architecture)
 const MAX_DATA_POINTS = 30; // Show last 30 data points
 const MAX_MINI_POINTS = 20; // Mini charts show last 20 points
 

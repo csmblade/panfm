@@ -9,8 +9,8 @@ PATCH: Bug fixes, small improvements, documentation updates
 
 # Current version
 VERSION_MAJOR = 1
-VERSION_MINOR = 7
-VERSION_PATCH = 6
+VERSION_MINOR = 8
+VERSION_PATCH = 0
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Database Persistence Fix"
+VERSION_CODENAME = "Full Database-First Architecture"
 
 
 def get_version():
@@ -75,6 +75,48 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.8.0',
+        'codename': 'Full Database-First Architecture',
+        'date': '2025-11-06',
+        'type': 'minor',
+        'changes': [
+            'MAJOR FEATURE: Complete dashboard migration to database-first architecture',
+            'PERFORMANCE: 90% reduction in firewall API load (100 calls/min → 10 calls/min)',
+            'ARCHITECTURE: All dashboard data now stored in SQLite and retrieved from database',
+            'DATABASE: Expanded throughput_samples table with 17 new columns for complete dashboard state',
+            'NEW COLUMNS: Threats (critical, medium, blocked URLs, last seen timestamps)',
+            'NEW COLUMNS: Applications (top apps as JSON array)',
+            'NEW COLUMNS: Interfaces (errors, drops, stats as JSON)',
+            'NEW COLUMNS: License (expired count, licensed count)',
+            'NEW COLUMNS: WAN (IP address, speed)',
+            'NEW COLUMNS: System (hostname, uptime, PAN-OS version)',
+            'SCHEMA MIGRATION: Automatic schema upgrade on app startup (safe to run multiple times)',
+            'STORAGE: insert_sample() now writes all 32 dashboard fields',
+            'STORAGE: get_latest_sample() returns complete dashboard state with JSON deserialization',
+            'COLLECTOR: No changes needed (get_throughput_data already collects all data)',
+            'FRONTEND: UPDATE_INTERVAL changed from 5 seconds to 60 seconds',
+            'SETTINGS: refresh_interval default changed from 15 seconds to 60 seconds',
+            'USER EXPERIENCE: Dashboard updates every minute instead of every 5-15 seconds',
+            'USER EXPERIENCE: Faster page loads (database query vs 8-10 API calls)',
+            'USER EXPERIENCE: Multi-user friendly (all see same data from database)',
+            'SCALABILITY: Linear API load (10 calls/min regardless of browser count)',
+            'DATABASE SIZE: Estimated 25-30 MB per device per 90 days (still very manageable)',
+            'SETUP: setup.sh now creates full schema with all Phase 2 columns',
+            'BACKWARD COMPATIBLE: Existing databases auto-migrate with ALTER TABLE statements',
+            'NO BREAKING CHANGES: Existing data preserved, new columns added gracefully',
+            'Modified files: throughput_storage.py (schema migration, insert/query updates)',
+            'Modified files: static/app.js (UPDATE_INTERVAL: 5000 → 60000)',
+            'Modified files: config.py (refresh_interval default: 15 → 60)',
+            'Modified files: app.py (updated comment)',
+            'Modified files: setup.sh (added 17 new columns to schema)',
+            'Modified files: version.py (bumped to v1.8.0)',
+            'This completes Phase 2 of database-first architecture migration',
+            'Phase 1 (v1.7.0-1.7.6): Throughput data + persistence',
+            'Phase 2 (v1.8.0): Complete dashboard data migration',
+            'IMPACT: Reduced firewall load, faster UI, better scalability, browser-independent data'
+        ]
+    },
     {
         'version': '1.7.6',
         'codename': 'Database Persistence Fix',

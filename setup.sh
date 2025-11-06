@@ -181,6 +181,7 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
 # Create throughput_samples table (matches throughput_storage.py schema)
+# Includes Phase 2 columns for full dashboard data
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS throughput_samples (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,7 +199,24 @@ cursor.execute('''
         sessions_icmp INTEGER,
         cpu_data_plane INTEGER,
         cpu_mgmt_plane INTEGER,
-        memory_used_pct INTEGER
+        memory_used_pct INTEGER,
+        critical_threats INTEGER DEFAULT 0,
+        medium_threats INTEGER DEFAULT 0,
+        blocked_urls INTEGER DEFAULT 0,
+        critical_last_seen TEXT,
+        medium_last_seen TEXT,
+        blocked_url_last_seen TEXT,
+        top_apps_json TEXT,
+        interface_errors INTEGER DEFAULT 0,
+        interface_drops INTEGER DEFAULT 0,
+        interface_stats_json TEXT,
+        license_expired INTEGER DEFAULT 0,
+        license_licensed INTEGER DEFAULT 0,
+        wan_ip TEXT,
+        wan_speed TEXT,
+        hostname TEXT,
+        uptime_seconds INTEGER,
+        pan_os_version TEXT
     )
 ''')
 

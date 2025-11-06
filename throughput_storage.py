@@ -10,6 +10,7 @@ Created: 2025-11-06
 
 import sqlite3
 import os
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 from logger import debug, info, warning, error, exception
@@ -78,6 +79,70 @@ class ThroughputStorage:
             exception("Failed to initialize database schema: %s", str(e))
             raise
 
+        # Run schema migration for Phase 2 (adds new columns)
+        self._migrate_schema_phase2()
+
+    def _migrate_schema_phase2(self):
+        """
+        Migrate database schema for Phase 2: Full Dashboard Database-First Architecture.
+
+        Adds columns for threats, applications, interfaces, license, and WAN data.
+        Safe to run multiple times (uses ALTER TABLE with error handling).
+        """
+        debug("Checking for Phase 2 schema migration")
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # List of new columns to add for Phase 2
+            new_columns = [
+                ('critical_threats', 'INTEGER DEFAULT 0'),
+                ('medium_threats', 'INTEGER DEFAULT 0'),
+                ('blocked_urls', 'INTEGER DEFAULT 0'),
+                ('critical_last_seen', 'TEXT'),
+                ('medium_last_seen', 'TEXT'),
+                ('blocked_url_last_seen', 'TEXT'),
+                ('top_apps_json', 'TEXT'),  # JSON array of top applications
+                ('interface_errors', 'INTEGER DEFAULT 0'),
+                ('interface_drops', 'INTEGER DEFAULT 0'),
+                ('interface_stats_json', 'TEXT'),  # JSON array of interface details
+                ('license_expired', 'INTEGER DEFAULT 0'),
+                ('license_licensed', 'INTEGER DEFAULT 0'),
+                ('wan_ip', 'TEXT'),
+                ('wan_speed', 'TEXT'),
+                ('hostname', 'TEXT'),
+                ('uptime_seconds', 'INTEGER'),
+                ('pan_os_version', 'TEXT')
+            ]
+
+            # Attempt to add each column
+            columns_added = 0
+            for col_name, col_type in new_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE throughput_samples ADD COLUMN {col_name} {col_type}")
+                    columns_added += 1
+                    debug(f"Added column: {col_name}")
+                except sqlite3.OperationalError as e:
+                    if 'duplicate column name' in str(e).lower():
+                        # Column already exists, this is fine
+                        pass
+                    else:
+                        # Some other error
+                        warning(f"Error adding column {col_name}: {e}")
+
+            conn.commit()
+            conn.close()
+
+            if columns_added > 0:
+                info(f"Phase 2 schema migration: added {columns_added} new columns")
+            else:
+                debug("Phase 2 schema already up to date")
+
+        except Exception as e:
+            exception("Error during Phase 2 schema migration: %s", str(e))
+            # Don't raise - allow app to continue with existing schema
+
     def insert_sample(self, device_id: str, sample_data: Dict) -> bool:
         """
         Insert a single throughput sample into the database.
@@ -98,14 +163,25 @@ class ThroughputStorage:
             # Extract metrics from sample data
             timestamp = sample_data.get('timestamp', datetime.utcnow().isoformat())
 
+            # Serialize JSON fields
+            top_apps_json = json.dumps(sample_data.get('top_applications', [])) if sample_data.get('top_applications') else None
+            interface_stats_json = json.dumps(sample_data.get('interface_stats', [])) if sample_data.get('interface_stats') else None
+
             cursor.execute('''
                 INSERT INTO throughput_samples (
                     device_id, timestamp,
                     inbound_mbps, outbound_mbps, total_mbps,
                     inbound_pps, outbound_pps, total_pps,
                     sessions_active, sessions_tcp, sessions_udp, sessions_icmp,
-                    cpu_data_plane, cpu_mgmt_plane, memory_used_pct
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cpu_data_plane, cpu_mgmt_plane, memory_used_pct,
+                    critical_threats, medium_threats, blocked_urls,
+                    critical_last_seen, medium_last_seen, blocked_url_last_seen,
+                    top_apps_json,
+                    interface_errors, interface_drops, interface_stats_json,
+                    license_expired, license_licensed,
+                    wan_ip, wan_speed,
+                    hostname, uptime_seconds, pan_os_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 device_id,
                 timestamp,
@@ -121,7 +197,30 @@ class ThroughputStorage:
                 sample_data.get('sessions', {}).get('icmp'),
                 sample_data.get('cpu', {}).get('data_plane_cpu'),
                 sample_data.get('cpu', {}).get('mgmt_plane_cpu'),
-                sample_data.get('cpu', {}).get('memory_used_pct')
+                sample_data.get('cpu', {}).get('memory_used_pct'),
+                # Phase 2 fields: Threats
+                sample_data.get('threats', {}).get('critical'),
+                sample_data.get('threats', {}).get('medium'),
+                sample_data.get('threats', {}).get('blocked_urls'),
+                sample_data.get('threats', {}).get('critical_last_seen'),
+                sample_data.get('threats', {}).get('medium_last_seen'),
+                sample_data.get('threats', {}).get('blocked_url_last_seen'),
+                # Phase 2 fields: Applications (JSON)
+                top_apps_json,
+                # Phase 2 fields: Interfaces
+                sample_data.get('interface_errors'),
+                sample_data.get('interface_drops'),
+                interface_stats_json,
+                # Phase 2 fields: License
+                sample_data.get('license', {}).get('expired'),
+                sample_data.get('license', {}).get('licensed'),
+                # Phase 2 fields: WAN
+                sample_data.get('wan_ip'),
+                sample_data.get('wan_speed'),
+                # Phase 2 fields: System
+                sample_data.get('hostname'),
+                sample_data.get('uptime_seconds'),
+                sample_data.get('pan_os_version')
             ))
 
             conn.commit()
@@ -316,14 +415,21 @@ class ThroughputStorage:
             # Calculate cutoff time
             cutoff_time = datetime.utcnow() - timedelta(seconds=max_age_seconds)
 
-            # Query most recent sample within time window
+            # Query most recent sample within time window (all Phase 1 + Phase 2 columns)
             cursor.execute('''
                 SELECT
                     timestamp,
                     inbound_mbps, outbound_mbps, total_mbps,
                     inbound_pps, outbound_pps, total_pps,
                     sessions_active, sessions_tcp, sessions_udp, sessions_icmp,
-                    cpu_data_plane, cpu_mgmt_plane, memory_used_pct
+                    cpu_data_plane, cpu_mgmt_plane, memory_used_pct,
+                    critical_threats, medium_threats, blocked_urls,
+                    critical_last_seen, medium_last_seen, blocked_url_last_seen,
+                    top_apps_json,
+                    interface_errors, interface_drops, interface_stats_json,
+                    license_expired, license_licensed,
+                    wan_ip, wan_speed,
+                    hostname, uptime_seconds, pan_os_version
                 FROM throughput_samples
                 WHERE device_id = ? AND timestamp >= ?
                 ORDER BY timestamp DESC
@@ -336,6 +442,10 @@ class ThroughputStorage:
             if row is None:
                 debug("No recent sample found for device %s", device_id)
                 return None
+
+            # Deserialize JSON fields
+            top_apps = json.loads(row['top_apps_json']) if row['top_apps_json'] else []
+            interface_stats = json.loads(row['interface_stats_json']) if row['interface_stats_json'] else []
 
             # Convert to dictionary with same format as firewall_api.get_throughput_data()
             sample = {
@@ -356,7 +466,34 @@ class ThroughputStorage:
                     'data_plane_cpu': row['cpu_data_plane'],
                     'mgmt_plane_cpu': row['cpu_mgmt_plane'],
                     'memory_used_pct': row['memory_used_pct']
-                }
+                },
+                # Phase 2 fields: Threats
+                'threats': {
+                    'critical': row['critical_threats'],
+                    'medium': row['medium_threats'],
+                    'blocked_urls': row['blocked_urls'],
+                    'critical_last_seen': row['critical_last_seen'],
+                    'medium_last_seen': row['medium_last_seen'],
+                    'blocked_url_last_seen': row['blocked_url_last_seen']
+                },
+                # Phase 2 fields: Applications
+                'top_applications': top_apps,
+                # Phase 2 fields: Interfaces
+                'interface_errors': row['interface_errors'],
+                'interface_drops': row['interface_drops'],
+                'interface_stats': interface_stats,
+                # Phase 2 fields: License
+                'license': {
+                    'expired': row['license_expired'],
+                    'licensed': row['license_licensed']
+                },
+                # Phase 2 fields: WAN
+                'wan_ip': row['wan_ip'],
+                'wan_speed': row['wan_speed'],
+                # Phase 2 fields: System
+                'hostname': row['hostname'],
+                'uptime_seconds': row['uptime_seconds'],
+                'pan_os_version': row['pan_os_version']
             }
 
             debug("Retrieved latest sample for device %s from %s", device_id, sample['timestamp'])

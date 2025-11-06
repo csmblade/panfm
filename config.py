@@ -30,7 +30,7 @@ _service_port_db_loaded = False
 
 # Default settings
 DEFAULT_SETTINGS = {
-    'refresh_interval': 15,
+    'refresh_interval': 60,  # Phase 2: Database-first architecture (was 15)
     'debug_logging': False,
     'selected_device_id': '',
     'monitored_interface': 'ethernet1/12',
