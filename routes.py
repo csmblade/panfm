@@ -204,7 +204,7 @@ def register_routes(app, csrf, limiter):
         debug("=== Throughput API endpoint called (database-first) ===")
         settings = load_settings()
         device_id = settings.get('selected_device_id', '')
-        refresh_interval = settings.get('refresh_interval', 15)
+        refresh_interval = settings.get('refresh_interval', 60)
 
         # If no device selected, auto-select the first enabled device
         if not device_id:
@@ -247,6 +247,7 @@ def register_routes(app, csrf, limiter):
                 debug("No recent throughput data in database, returning zeros")
                 # Return zero values if no recent data (collector may be starting up)
                 return jsonify({
+                    'status': 'success',
                     'inbound_mbps': 0,
                     'outbound_mbps': 0,
                     'total_mbps': 0,
@@ -259,6 +260,47 @@ def register_routes(app, csrf, limiter):
                 })
 
             debug(f"Returning latest sample from database: {latest_sample['timestamp']}")
+            # Add status field for frontend compatibility
+            latest_sample['status'] = 'success'
+
+            # Ensure all numeric fields have valid values (convert None to 0)
+            numeric_fields = [
+                'inbound_mbps', 'outbound_mbps', 'total_mbps',
+                'inbound_pps', 'outbound_pps', 'total_pps'
+            ]
+            for field in numeric_fields:
+                if latest_sample.get(field) is None:
+                    latest_sample[field] = 0
+                # Also convert to float to ensure it's a number
+                latest_sample[field] = float(latest_sample[field]) if latest_sample[field] is not None else 0.0
+
+            # Ensure nested objects exist with defaults and sanitize their values
+            if not latest_sample.get('sessions'):
+                latest_sample['sessions'] = {}
+            sessions = latest_sample['sessions']
+            sessions['active'] = int(sessions.get('active') or 0)
+            sessions['tcp'] = int(sessions.get('tcp') or 0)
+            sessions['udp'] = int(sessions.get('udp') or 0)
+            sessions['icmp'] = int(sessions.get('icmp') or 0)
+
+            if not latest_sample.get('cpu'):
+                latest_sample['cpu'] = {}
+            cpu = latest_sample['cpu']
+            cpu['data_plane_cpu'] = float(cpu.get('data_plane_cpu') or 0)
+            cpu['mgmt_plane_cpu'] = float(cpu.get('mgmt_plane_cpu') or 0)
+            cpu['memory_used_pct'] = float(cpu.get('memory_used_pct') or 0)
+
+            # Ensure threats object exists with defaults and sanitize values
+            if not latest_sample.get('threats'):
+                latest_sample['threats'] = {}
+            threats = latest_sample['threats']
+            threats['critical_threats'] = int(threats.get('critical_threats') or threats.get('critical') or 0)
+            threats['medium_threats'] = int(threats.get('medium_threats') or threats.get('medium') or 0)
+            threats['blocked_urls'] = int(threats.get('blocked_urls') or 0)
+            threats['critical_logs'] = threats.get('critical_logs') or []
+            threats['medium_logs'] = threats.get('medium_logs') or []
+            threats['blocked_url_logs'] = threats.get('blocked_url_logs') or []
+
             return jsonify(latest_sample)
 
         except Exception as e:
@@ -303,6 +345,7 @@ def register_routes(app, csrf, limiter):
             # Parse time range
             now = datetime.utcnow()
             range_map = {
+                '30m': timedelta(minutes=30),
                 '1h': timedelta(hours=1),
                 '6h': timedelta(hours=6),
                 '24h': timedelta(hours=24),
@@ -603,9 +646,10 @@ def register_routes(app, csrf, limiter):
             }
 
             # Get APScheduler status
-            collector = get_collector()
-            if collector is not None:
-                scheduler = collector.scheduler
+            # Import global scheduler from app.py
+            from app import scheduler
+
+            if scheduler is not None:
                 result['scheduler']['state'] = 'Running' if scheduler.running else 'Stopped'
                 result['scheduler']['jobs_count'] = len(scheduler.get_jobs())
 
@@ -621,14 +665,18 @@ def register_routes(app, csrf, limiter):
                     result['jobs'].append(job_info)
 
                 # Get last run time from storage
-                storage = collector.storage
-                settings = load_settings()
-                device_id = settings.get('selected_device_id', '')
+                collector = get_collector()
+                if collector is not None:
+                    storage = collector.storage
+                    settings = load_settings()
+                    device_id = settings.get('selected_device_id', '')
 
-                if device_id:
-                    latest_sample = storage.get_latest_sample(device_id, max_age_seconds=7200)  # 2 hours
-                    if latest_sample:
-                        result['scheduler']['last_run'] = latest_sample['timestamp']
+                    if device_id:
+                        latest_sample = storage.get_latest_sample(device_id, max_age_seconds=7200)  # 2 hours
+                        if latest_sample:
+                            result['scheduler']['last_run'] = latest_sample['timestamp']
+                        else:
+                            result['scheduler']['last_run'] = None
                     else:
                         result['scheduler']['last_run'] = None
                 else:
@@ -706,6 +754,63 @@ def register_routes(app, csrf, limiter):
 
         except Exception as e:
             exception(f"Failed to get services status: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/database/clear', methods=['POST'])
+    @limiter.limit("5 per hour")  # Very strict limit for destructive operation
+    @login_required
+    def clear_database():
+        """API endpoint to clear all data from throughput history database"""
+        from throughput_collector import get_collector
+        import sqlite3
+
+        debug("=== Clear Database API endpoint called ===")
+
+        try:
+            collector = get_collector()
+            if collector is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Throughput collector not initialized'
+                }), 503
+
+            storage = collector.storage
+            db_path = storage.db_path
+
+            # Count rows before deletion
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM throughput_samples")
+            count_before = cursor.fetchone()[0]
+
+            # Delete all rows
+            cursor.execute("DELETE FROM throughput_samples")
+            conn.commit()
+
+            # Verify deletion
+            cursor.execute("SELECT COUNT(*) FROM throughput_samples")
+            count_after = cursor.fetchone()[0]
+
+            # Run VACUUM to reclaim disk space
+            cursor.execute("VACUUM")
+            conn.commit()
+            conn.close()
+
+            deleted_count = count_before - count_after
+
+            info(f"Database cleared: {deleted_count} samples deleted by user {session.get('username', 'unknown')}")
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Database cleared successfully',
+                'deleted_count': deleted_count
+            })
+
+        except Exception as e:
+            exception(f"Failed to clear database: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)
@@ -1242,12 +1347,12 @@ def register_routes(app, csrf, limiter):
                 debug(f"Received settings: {new_settings}")
 
                 # Validate settings
-                refresh_interval = int(new_settings.get('refresh_interval', 5))
+                refresh_interval = int(new_settings.get('refresh_interval', 60))
                 match_count = int(new_settings.get('match_count', 5))
                 top_apps_count = int(new_settings.get('top_apps_count', 5))
 
-                # Ensure values are within valid ranges
-                refresh_interval = max(1, min(60, refresh_interval))
+                # Ensure values are within valid ranges (30s min, 300s max = 5 minutes)
+                refresh_interval = max(30, min(300, refresh_interval))
                 match_count = max(1, min(20, match_count))
                 top_apps_count = max(1, min(10, top_apps_count))
 

@@ -189,6 +189,18 @@ function calculateTrend(dataArray) {
     }
 }
 
+/**
+ * Calculate average of data array (for 5-minute averages)
+ * @param {Array} dataArray - Array of numeric values
+ * @returns {number} - Average value, rounded to 2 decimal places
+ */
+function calculateAverage(dataArray) {
+    if (!dataArray || dataArray.length === 0) return 0;
+    const sum = dataArray.reduce((a, b) => a + b, 0);
+    const avg = sum / dataArray.length;
+    return Math.round(avg * 100) / 100; // Round to 2 decimal places
+}
+
 // Update the chart with new data
 function updateChart(data) {
     const timestamp = new Date(data.timestamp);
@@ -231,11 +243,11 @@ function updateChart(data) {
 
 // Update stat cards
 function updateStats(data) {
-    // Store historical data for trends (keep last 60 data points = 5 minutes at 5 second intervals)
+    // Store historical data for trends (keep last 30 data points = 30 minutes at 60 second intervals)
     historicalData.inbound.push(data.inbound_mbps);
     historicalData.outbound.push(data.outbound_mbps);
     historicalData.total.push(data.total_mbps);
-    if (historicalData.inbound.length > 60) {
+    if (historicalData.inbound.length > 30) {
         historicalData.inbound.shift();
         historicalData.outbound.shift();
         historicalData.total.shift();
@@ -245,14 +257,27 @@ function updateStats(data) {
     document.getElementById('outboundValue').innerHTML = data.outbound_mbps.toLocaleString() + calculateTrend(historicalData.outbound);
     document.getElementById('totalValue').innerHTML = data.total_mbps.toLocaleString() + calculateTrend(historicalData.total);
 
+    // Calculate 5-minute averages (last 5 samples at 60-second intervals = 300 seconds = 5 minutes)
+    const last5Inbound = historicalData.inbound.slice(-5);
+    const last5Outbound = historicalData.outbound.slice(-5);
+    const last5Total = historicalData.total.slice(-5);
+
+    const inboundAvg = calculateAverage(last5Inbound);
+    const outboundAvg = calculateAverage(last5Outbound);
+    const totalAvg = calculateAverage(last5Total);
+
+    document.getElementById('inboundAvg').textContent = inboundAvg.toLocaleString();
+    document.getElementById('outboundAvg').textContent = outboundAvg.toLocaleString();
+    document.getElementById('totalAvg').textContent = totalAvg.toLocaleString();
+
     // Update session counts and mini chart
     if (data.sessions) {
-        // Store historical data
+        // Store historical data (keep last 30 data points = 30 minutes at 60 second intervals)
         historicalData.sessions.push(data.sessions.active);
         historicalData.tcp.push(data.sessions.tcp);
         historicalData.udp.push(data.sessions.udp);
         historicalData.icmp.push(data.sessions.icmp);
-        if (historicalData.sessions.length > 60) {
+        if (historicalData.sessions.length > 30) {
             historicalData.sessions.shift();
             historicalData.tcp.shift();
             historicalData.udp.shift();
@@ -353,7 +378,7 @@ function updateStats(data) {
 
             // Store historical data
             historicalData.interfaceErrors.push(totalIssues);
-            if (historicalData.interfaceErrors.length > 60) {
+            if (historicalData.interfaceErrors.length > 30) {
                 historicalData.interfaceErrors.shift();
             }
 
@@ -418,7 +443,7 @@ function updateStats(data) {
         historicalData.mediumThreats.push(data.threats.medium_threats);
         historicalData.blockedUrls.push(data.threats.blocked_urls);
         historicalData.urlFiltering.push(data.threats.url_filtering_total);
-        if (historicalData.criticalThreats.length > 60) {
+        if (historicalData.criticalThreats.length > 30) {
             historicalData.criticalThreats.shift();
             historicalData.mediumThreats.shift();
             historicalData.blockedUrls.shift();
@@ -710,10 +735,11 @@ function animateValue(element, start, end, duration) {
 /**
  * Preload recent historical data to populate chart on page load
  * Queries last 30 minutes of data from database to avoid empty chart
+ * Also preloads mini chart data for PPS and Sessions
  */
 async function preloadChartData() {
     try {
-        console.log('Preloading recent historical data for chart...');
+        console.log('Preloading recent historical data for charts...');
 
         const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
         if (!deviceId) {
@@ -734,11 +760,18 @@ async function preloadChartData() {
             chartData.outbound = [];
             chartData.total = [];
 
-            // Take only the last MAX_DATA_POINTS samples
-            const samplesToUse = data.samples.slice(-MAX_DATA_POINTS);
+            // Clear mini chart data
+            miniChartData.pps = [];
+            miniChartData.sessions = [];
+            miniChartData.tcp = [];
+            miniChartData.udp = [];
 
-            // Populate chart data arrays
-            samplesToUse.forEach(sample => {
+            // Take last MAX_DATA_POINTS for main chart, last MAX_MINI_POINTS for mini charts
+            const mainChartSamples = data.samples.slice(-MAX_DATA_POINTS);
+            const miniChartSamples = data.samples.slice(-MAX_MINI_POINTS);
+
+            // Populate main chart data arrays
+            mainChartSamples.forEach(sample => {
                 const timestamp = new Date(sample.timestamp).toLocaleTimeString();
                 chartData.labels.push(timestamp);
                 chartData.inbound.push(sample.inbound_mbps || 0);
@@ -746,10 +779,35 @@ async function preloadChartData() {
                 chartData.total.push(sample.total_mbps || 0);
             });
 
-            // Update chart with preloaded data
+            // Populate mini chart data arrays
+            miniChartSamples.forEach(sample => {
+                // PPS data
+                miniChartData.pps.push(sample.total_pps || 0);
+
+                // Sessions data
+                miniChartData.sessions.push(sample.sessions_active || 0);
+                miniChartData.tcp.push(sample.sessions_tcp || 0);
+                miniChartData.udp.push(sample.sessions_udp || 0);
+            });
+
+            // Update main chart with preloaded data
             chart.update();
 
-            console.log(`Chart initialized with ${chartData.labels.length} historical data points`);
+            // Update mini charts with preloaded data
+            if (ppsChart) {
+                updateMiniChart(ppsChart, miniChartData.pps, '#ffffff');
+            }
+            if (sessionChart) {
+                updateMiniChart(sessionChart, miniChartData.sessions, '#ff6600');
+            }
+            if (tcpChart) {
+                updateMiniChart(tcpChart, miniChartData.tcp, '#3b82f6');
+            }
+            if (udpChart) {
+                updateMiniChart(udpChart, miniChartData.udp, '#8b5cf6');
+            }
+
+            console.log(`Charts initialized with ${chartData.labels.length} main chart points and ${miniChartData.pps.length} mini chart points`);
         } else {
             console.log('No historical data available for preload');
         }
@@ -1346,6 +1404,22 @@ function refreshAllDataForDevice() {
         totalValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
     }
 
+    // Reset 5-minute averages
+    const inboundAvg = document.getElementById('inboundAvg');
+    if (inboundAvg) {
+        inboundAvg.textContent = '-';
+    }
+
+    const outboundAvg = document.getElementById('outboundAvg');
+    if (outboundAvg) {
+        outboundAvg.textContent = '-';
+    }
+
+    const totalAvg = document.getElementById('totalAvg');
+    if (totalAvg) {
+        totalAvg.textContent = '-';
+    }
+
     // Session stats
     const sessionValue = document.getElementById('sessionValue');
     if (sessionValue) {
@@ -1506,6 +1580,10 @@ function refreshAllDataForDevice() {
     if (updateIntervalId) {
         clearInterval(updateIntervalId);
     }
+
+    // Preload historical data for charts before starting real-time updates
+    preloadChartData();
+
     fetchThroughputData();
     updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
     console.log(`Update interval restarted: ${UPDATE_INTERVAL}ms`);

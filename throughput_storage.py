@@ -198,10 +198,10 @@ class ThroughputStorage:
                 sample_data.get('cpu', {}).get('data_plane_cpu'),
                 sample_data.get('cpu', {}).get('mgmt_plane_cpu'),
                 sample_data.get('cpu', {}).get('memory_used_pct'),
-                # Phase 2 fields: Threats
-                sample_data.get('threats', {}).get('critical'),
-                sample_data.get('threats', {}).get('medium'),
-                sample_data.get('threats', {}).get('blocked_urls'),
+                # Phase 2 fields: Threats (handle both field name variations)
+                sample_data.get('threats', {}).get('critical_threats') or sample_data.get('threats', {}).get('critical') or 0,
+                sample_data.get('threats', {}).get('medium_threats') or sample_data.get('threats', {}).get('medium') or 0,
+                sample_data.get('threats', {}).get('blocked_urls') or 0,
                 sample_data.get('threats', {}).get('critical_last_seen'),
                 sample_data.get('threats', {}).get('medium_last_seen'),
                 sample_data.get('threats', {}).get('blocked_url_last_seen'),
@@ -469,12 +469,17 @@ class ThroughputStorage:
                 },
                 # Phase 2 fields: Threats
                 'threats': {
-                    'critical': row['critical_threats'],
-                    'medium': row['medium_threats'],
+                    'critical_threats': row['critical_threats'],
+                    'medium_threats': row['medium_threats'],
+                    'critical': row['critical_threats'],  # Backward compatibility
+                    'medium': row['medium_threats'],  # Backward compatibility
                     'blocked_urls': row['blocked_urls'],
                     'critical_last_seen': row['critical_last_seen'],
                     'medium_last_seen': row['medium_last_seen'],
-                    'blocked_url_last_seen': row['blocked_url_last_seen']
+                    'blocked_url_last_seen': row['blocked_url_last_seen'],
+                    'critical_logs': [],  # Not stored in database, would need separate query
+                    'medium_logs': [],  # Not stored in database
+                    'blocked_url_logs': []  # Not stored in database
                 },
                 # Phase 2 fields: Applications
                 'top_applications': top_apps,

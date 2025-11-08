@@ -623,9 +623,6 @@
                     <button class="time-range-btn" data-range="30d" style="padding: 6px 14px; background: #4a5568; color: white; border: none; border-radius: 6px; font-size: 0.8em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
                         30 Days
                     </button>
-                    <button class="time-range-btn" data-range="90d" style="padding: 6px 14px; background: #4a5568; color: white; border: none; border-radius: 6px; font-size: 0.8em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
-                        90 Days
-                    </button>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button id="exportHistoryBtn" style="padding: 6px 14px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 0.8em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); display: none;">
@@ -700,6 +697,24 @@
                     <span style="color: rgba(255, 255, 255, 0.7); font-size: 0.85em;">Outbound:</span>
                     <span id="outboundValue" style="color: #ffffff; font-weight: 700; font-size: 0.95em; margin-left: 5px; font-family: var(--font-primary);">-</span>
                     <span style="color: rgba(255, 255, 255, 0.6); font-size: 0.8em; margin-left: 3px;">Mbps</span>
+                </div>
+            </div>
+            <!-- 5-Minute Averages -->
+            <div style="display: flex; justify-content: center; gap: 30px; margin-top: 2px; padding: 6px; font-family: var(--font-secondary); border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="text-align: center;">
+                    <span style="color: rgba(255, 255, 255, 0.5); font-size: 0.75em;">Total Avg:</span>
+                    <span id="totalAvg" style="color: rgba(255, 255, 255, 0.7); font-weight: 600; font-size: 0.85em; margin-left: 5px; font-family: var(--font-primary);">-</span>
+                    <span style="color: rgba(255, 255, 255, 0.4); font-size: 0.7em; margin-left: 3px;">Mbps</span>
+                </div>
+                <div style="text-align: center;">
+                    <span style="color: rgba(255, 255, 255, 0.5); font-size: 0.75em;">Inbound Avg:</span>
+                    <span id="inboundAvg" style="color: rgba(255, 255, 255, 0.7); font-weight: 600; font-size: 0.85em; margin-left: 5px; font-family: var(--font-primary);">-</span>
+                    <span style="color: rgba(255, 255, 255, 0.4); font-size: 0.7em; margin-left: 3px;">Mbps</span>
+                </div>
+                <div style="text-align: center;">
+                    <span style="color: rgba(255, 255, 255, 0.5); font-size: 0.75em;">Outbound Avg:</span>
+                    <span id="outboundAvg" style="color: rgba(255, 255, 255, 0.7); font-weight: 600; font-size: 0.85em; margin-left: 5px; font-family: var(--font-primary);">-</span>
+                    <span style="color: rgba(255, 255, 255, 0.4); font-size: 0.7em; margin-left: 3px;">Mbps</span>
                 </div>
             </div>
         </div>
@@ -1729,9 +1744,9 @@
                                 <label style="display: block; color: #333; font-weight: 600; margin-bottom: 10px; font-size: 1.1em;">
                                     Refresh Interval (seconds)
                                 </label>
-                                <input type="number" id="refreshInterval" min="15" max="360" value="15"
+                                <input type="number" id="refreshInterval" min="30" max="300" value="60"
                                        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em; transition: border-color 0.3s;">
-                                <p style="color: #666; font-size: 0.9em; margin-top: 5px;">How often to update the dashboard data (15-360 seconds)</p>
+                                <p style="color: #666; font-size: 0.9em; margin-top: 5px;">How often to update the dashboard data (30-300 seconds = 30s to 5 minutes)</p>
                             </div>
 
                             <div style="margin-bottom: 30px;">
@@ -2267,8 +2282,11 @@
                                 </div>
                             </div>
 
-                            <!-- Refresh Button -->
-                            <div style="margin-top: 20px; text-align: right;">
+                            <!-- Action Buttons -->
+                            <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <button onclick="clearDatabase()" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 6px; font-size: 0.9em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: transform 0.2s;">
+                                    🗑️ Clear Database
+                                </button>
                                 <button onclick="refreshServicesStatus()" style="padding: 10px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-size: 0.9em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
                                     🔄 Refresh Status
                                 </button>

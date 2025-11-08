@@ -157,7 +157,7 @@ async function saveSettingsData() {
 }
 
 function resetSettingsData() {
-    document.getElementById('refreshInterval').value = 15;
+    document.getElementById('refreshInterval').value = 60;
     document.getElementById('debugLogging').checked = false;
     document.getElementById('tonyMode').checked = false;
     document.getElementById('timezone').value = 'UTC';
@@ -914,6 +914,60 @@ function formatRelativeTime(date) {
     } else {
         const days = Math.floor(diffSecs / 86400);
         return isPast ? `${days} day${days !== 1 ? 's' : ''} ago` : `in ${days} day${days !== 1 ? 's' : ''}`;
+    }
+}
+
+/**
+ * Clear all data from the throughput history database
+ */
+async function clearDatabase() {
+    // Confirm with user
+    const confirmed = confirm(
+        '⚠️ WARNING: This will permanently delete ALL historical throughput data from the database.\n\n' +
+        'This includes:\n' +
+        '• All throughput samples\n' +
+        '• All historical metrics\n' +
+        '• All charts data\n\n' +
+        'This action CANNOT be undone!\n\n' +
+        'Are you sure you want to continue?'
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    // Double confirmation for destructive action
+    const doubleConfirm = confirm(
+        '🔴 FINAL CONFIRMATION\n\n' +
+        'You are about to PERMANENTLY DELETE all database records.\n\n' +
+        'Click OK to proceed with deletion, or Cancel to abort.'
+    );
+
+    if (!doubleConfirm) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/database/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            alert(`✅ Database cleared successfully!\n\nDeleted ${data.deleted_count} samples from the database.`);
+            // Refresh the services status to show updated stats
+            await refreshServicesStatus();
+        } else {
+            alert('❌ Error: ' + (data.message || 'Failed to clear database'));
+        }
+    } catch (error) {
+        console.error('Error clearing database:', error);
+        alert('❌ Error clearing database: ' + error.message);
     }
 }
 

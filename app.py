@@ -7,10 +7,9 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_apscheduler import APScheduler
+from datetime import timedelta
 import urllib3
 import os
-from datetime import datetime, timedelta
 
 # Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -64,36 +63,51 @@ debug(f"Service port database loaded with {len(service_db)} entries")
 from encryption import check_key_permissions
 check_key_permissions()
 
-# Initialize throughput collector
+# Initialize APScheduler (BackgroundScheduler)
+from apscheduler.schedulers.background import BackgroundScheduler
 from config import THROUGHPUT_DB_FILE, load_settings
-from throughput_collector import init_collector
-from logger import info
+from throughput_collector import init_collector, get_collector
+from logger import info, exception
 
+# Load settings for throughput collection
 settings = load_settings()
 retention_days = settings.get('throughput_retention_days', 90)
 collection_enabled = settings.get('throughput_collection_enabled', True)
-refresh_interval = settings.get('refresh_interval', 60)  # Default 60 seconds (Phase 2)
+refresh_interval = settings.get('refresh_interval', 60)
 
 if collection_enabled:
     info("Initializing throughput collector with %d-day retention", retention_days)
     collector = init_collector(THROUGHPUT_DB_FILE, retention_days)
 
-    # Initialize APScheduler
-    scheduler = APScheduler()
-    app.config['SCHEDULER_API_ENABLED'] = False  # Disable scheduler API endpoints
-    scheduler.init_app(app)
+# Initialize BackgroundScheduler
+scheduler = BackgroundScheduler(timezone='UTC')
 
-    # Add collection job (uses refresh_interval from settings)
+if collection_enabled:
+    # Define collection function
+    def run_collection():
+        """Scheduled job to collect throughput data from all devices."""
+        try:
+            collector_instance = get_collector()
+            if collector_instance:
+                info("Running scheduled throughput collection...")
+                collector_instance.collect_all_devices()
+                info("Scheduled throughput collection completed")
+        except Exception as e:
+            exception("Error in scheduled collection: %s", str(e))
+
+    # Add job to scheduler
     scheduler.add_job(
-        id='collect_throughput',
-        func=collector.collect_all_devices,
+        func=run_collection,
         trigger='interval',
         seconds=refresh_interval,
-        next_run_time=datetime.now()  # Run immediately on startup
+        id='collect_throughput',
+        name='Throughput Data Collection',
+        replace_existing=True
     )
 
+    # Start the scheduler
     scheduler.start()
-    info("Throughput collector started successfully (%d-second interval, first run immediate)", refresh_interval)
+    info("APScheduler started successfully (%d-second interval)", refresh_interval)
 else:
     info("Throughput collection disabled in settings")
 
@@ -104,4 +118,10 @@ register_routes(app, csrf, limiter)
 if __name__ == '__main__':
     # Get debug mode from environment variable (default: False for production)
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+    # Register shutdown handler to stop scheduler cleanly
+    import atexit
+    atexit.register(lambda: scheduler.shutdown() if scheduler else None)
+
+    print("Starting Flask app...")
     app.run(debug=debug_mode, host='0.0.0.0', port=3000, use_reloader=False)
