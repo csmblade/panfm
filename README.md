@@ -1,6 +1,6 @@
 # PANfm - Palo Alto Networks Firewall Monitor
 
-![Version](https://img.shields.io/badge/Version-1.6.3-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.8.1-brightgreen?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Web_Framework-black?style=for-the-badge&logo=flask&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)

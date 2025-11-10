@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 8
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Build metadata (optional)
-VERSION_BUILD = "20251106"  # YYYYMMDD format
+VERSION_BUILD = "20251110"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Full Database-First Architecture"
+VERSION_CODENAME = "Modular Architecture"
 
 
 def get_version():
@@ -75,6 +75,42 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.8.1',
+        'codename': 'Modular Architecture',
+        'date': '2025-11-10',
+        'type': 'patch',
+        'changes': [
+            'MAJOR REFACTORING: Phase 2 & 3 modular architecture refactoring complete',
+            'CODE QUALITY: Split large modules to meet 500-line file size guideline',
+            'NEW MODULE: firewall_api_metrics.py (422 lines) - System resource metrics',
+            'NEW MODULE: firewall_api_applications.py (359 lines) - Application traffic analysis',
+            'NEW MODULE: firewall_api_throughput.py (426 lines) - Throughput calculation and dashboard',
+            'REFACTORED: firewall_api.py (967 → 228 lines, -76% reduction)',
+            'REFACTORED: firewall_api_logs.py (774 → 452 lines, -42% reduction)',
+            'REFACTORED: firewall_api_devices.py (1,393 → 461 lines, -67% reduction)',
+            'ARCHITECTURE: Prevented circular imports using lazy import pattern',
+            'ARCHITECTURE: Proper dependency ordering (throughput module imported last)',
+            'BACKWARD COMPATIBLE: All moved functions re-exported via comprehensive __all__ list',
+            'BUG FIX: Fixed import error - moved get_top_applications to correct module',
+            'FILE SIZE: All 12 firewall API modules now under 500 lines (except network.py at 526)',
+            'FILE SIZE: Average 354 lines per module (well under guideline)',
+            'TESTING: ✅ Docker deployment tested and working',
+            'TESTING: ✅ All API endpoints responding correctly',
+            'TESTING: ✅ All Python modules compile without errors',
+            'DOCUMENTATION: Updated architecture.md with complete module structure',
+            'DOCUMENTATION: Updated development.md with refactoring summary',
+            'DOCUMENTATION: Updated CLAUDE.md with new module hierarchy',
+            'DOCUMENTATION: Updated api-guidelines.md with all 12 modules',
+            'DOCUMENTATION: Created RELEASE_NOTES_v1.8.1.md with complete details',
+            'MAINTAINABILITY: Easier to navigate, understand, and modify codebase',
+            'SINGLE RESPONSIBILITY: Each module has clear, focused purpose',
+            'Modified files: firewall_api.py, firewall_api_logs.py, firewall_api_devices.py',
+            'New files: firewall_api_metrics.py, firewall_api_applications.py, firewall_api_throughput.py',
+            'Updated docs: architecture.md, development.md, CLAUDE.md, api-guidelines.md',
+            'This completes Phase 2 & 3 of the file size compliance initiative'
+        ]
+    },
     {
         'version': '1.8.0',
         'codename': 'Full Database-First Architecture',

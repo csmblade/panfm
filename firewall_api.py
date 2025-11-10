@@ -24,7 +24,9 @@ from device_manager import device_manager
 from firewall_api_logs import (
     get_system_logs,
     get_threat_stats,
-    get_traffic_logs,
+    get_traffic_logs
+)
+from firewall_api_applications import (
     get_top_applications,
     get_application_statistics
 )
