@@ -1,13 +1,13 @@
 # PANfm - Palo Alto Networks Firewall Monitor
 
-![Version](https://img.shields.io/badge/Version-1.8.1-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.10.0-brightgreen?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Web_Framework-black?style=for-the-badge&logo=flask&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=csmblade%2Fpanfm&countColor=%23FA582D&style=for-the-badge&labelStyle=upper)
 
-A real-time monitoring dashboard for Palo Alto Networks firewalls with automated PAN-OS upgrades, content management, and multi-device support. This is a POC experiment to see how agentic AI can help bring ideas to life.
+A real-time monitoring dashboard for Palo Alto Networks firewalls with automated PAN-OS upgrades, intelligent alerting, and multi-device support. Features a dual-process architecture with dedicated background scheduler for data collection and alert monitoring. This is a POC experiment to see how agentic AI can help bring ideas to life.
 
 <p align="center">
   <img src="screenshot.png" alt="PANfm Dashboard Screenshot" width="800">
@@ -55,9 +55,28 @@ docker compose logs -f
 - `device_metadata.json` - Device metadata storage (encrypted)
 - `mac_vendor_db.json` - MAC vendor database (upload via Settings)
 - `service_port_db.json` - Service port database (upload via Settings)
+- `alerts.db` - SQLite database for alert history
+- `throughput_history.db` - SQLite database for throughput metrics
 - `data/` - Data directory
 
 The dashboard will be available at **http://localhost:3000**
+
+### Dual-Process Architecture
+
+PANfm v1.10.0 uses a **dual-process architecture** for improved performance and reliability:
+
+**Web Process (`panfm`):**
+- Serves the web dashboard on port 3000
+- Handles user requests and displays data
+- Read-only access to databases (no scheduled tasks)
+
+**Clock Process (`panfm-clock`):**
+- Dedicated APScheduler background service
+- Collects throughput data every minute
+- Monitors alerts and triggers notifications
+- Manages database writes and data retention
+
+Both processes share SQLite databases (`throughput_history.db`, `alerts.db`) with proper locking to prevent conflicts.
 
 ### First Login
 
@@ -162,26 +181,100 @@ Download and upload via **Settings > Databases**:
 
 ## Features
 
-- Multi-device firewall monitoring
-- Database-first architecture with 1-minute updates
-- Historical throughput and system metrics with advanced charting
-- Automated PAN-OS upgrades
-- Content update management
-- Traffic and threat log analysis
-- Connected devices tracking
-- DHCP lease monitoring
-- Security policy management
-- All sensitive data encrypted at rest
+### Core Monitoring
+- **Multi-device firewall monitoring** - Manage multiple PA firewalls from one dashboard
+- **Database-first architecture** - SQLite databases with 1-minute automated updates
+- **Historical throughput and system metrics** - Advanced charting with time range selection
+- **Real-time traffic and threat log analysis** - Live monitoring and analysis
+- **Connected devices tracking** - ARP table monitoring with custom names, tags, and locations
+- **DHCP lease monitoring** - Track DHCP assignments and hostname mappings
 
-## Support
+### Intelligent Alerting (v1.9.0)
+- **9 Pre-built Alert Templates** - CPU, memory, sessions, threats, interface errors, and more
+- **4 Quick-Start Scenarios** - Get started in minutes with common alert configurations
+- **Multi-Channel Notifications** - Email (SMTP) and webhook support
+- **Flexible Scheduling** - Per-alert schedules with business hours support
+- **Alert History & Acknowledgment** - Track all alerts with SQLite database
+- **Test Notifications** - Validate your SMTP/webhook configuration before deployment
+
+### Operations & Management
+- **Automated PAN-OS Upgrades** - 5-step workflow with progress tracking and reboot monitoring
+- **Content Update Management** - Automated content package installation
+- **Backup & Restore System** - Full system backup including encryption keys and metadata
+- **Security Policy Management** - View and analyze firewall policies
+
+### Security & Deployment
+- **Dual-Process Architecture** - Separate web and scheduler processes for reliability
+- **All sensitive data encrypted at rest** - Fernet (AES-128) encryption
+- **CSRF protection** - Secure against cross-site request forgery
+- **Rate limiting** - Protect against abuse and API overload
+- **Docker + CLI deployment** - Deploy with Docker Compose or native Python
+- **bcrypt authentication** - Secure password hashing with session management
+
+## Support & Troubleshooting
+
+### Check Application Logs
 
 For issues or questions, check the application logs:
 
 ```bash
+# View both processes
 docker compose logs -f
+
+# View web process only
+docker compose logs -f panfm
+
+# View clock process only
+docker compose logs -f panfm-clock
 ```
 
 Enable debug logging in the Settings page for detailed troubleshooting.
+
+### Clock Process Not Running
+
+If throughput data or alerts aren't updating, check if the clock process is running:
+
+```bash
+# Check running containers
+docker compose ps
+
+# You should see both:
+# - panfm        (web process, port 3000)
+# - panfm-clock  (background scheduler)
+```
+
+If `panfm-clock` is not running:
+
+```bash
+# Restart the clock process
+docker compose restart panfm-clock
+
+# Or rebuild if there are code changes
+docker compose up -d --build panfm-clock
+```
+
+**Symptoms of clock process issues:**
+- Throughput charts show "No data available"
+- Alerts not triggering despite conditions being met
+- Services page shows "APScheduler: Not Running"
+- Last collection time not updating
+
+### Database Locking Issues
+
+If you see "database is locked" errors:
+
+1. **Check both processes are running** - Database locking is normal when both processes share SQLite
+2. **Restart both containers** - `docker compose restart`
+3. **Check disk space** - Ensure sufficient space for database writes
+
+### Alert Notifications Not Sending
+
+If alerts are configured but not sending:
+
+1. **Test your SMTP/webhook settings** - Use the "Test Notification" button in Settings
+2. **Check clock process logs** - `docker compose logs panfm-clock | grep -i alert`
+3. **Verify alert is enabled and scheduled** - Check alert configuration in Alerts page
+4. **Check notification channel is configured** - Settings > Notifications
 
 ## Branches
 
