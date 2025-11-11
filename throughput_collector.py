@@ -8,14 +8,20 @@ Author: PANfm Development Team
 Created: 2025-11-06
 """
 
+import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional
 from logger import debug, info, warning, error, exception
 from device_manager import device_manager
 from firewall_api import get_throughput_data, get_firewall_config
 from firewall_api_logs import get_system_logs, get_threat_stats, get_traffic_logs
 from throughput_storage import ThroughputStorage
+from alert_manager import alert_manager, format_alert_message
+from notification_manager import notification_manager
+
+# Cooldown period constant (now managed in database via alert_manager)
+_COOLDOWN_PERIOD_SECONDS = 900  # 15 minutes (900 seconds)
 
 
 class ThroughputCollector:
@@ -31,8 +37,6 @@ class ThroughputCollector:
         """
         self.storage = storage
         self.retention_days = retention_days
-        self.collection_count = 0
-        self.last_cleanup = None
         debug("ThroughputCollector initialized with %d-day retention", retention_days)
 
     def collect_all_devices(self):
@@ -41,7 +45,7 @@ class ThroughputCollector:
 
         This is the main collection function called by the APScheduler job.
         """
-        debug("Starting throughput collection cycle #%d", self.collection_count + 1)
+        debug("Starting throughput collection cycle")
 
         try:
             # Get all devices (load_devices returns a list directly)
@@ -72,6 +76,9 @@ class ThroughputCollector:
                         if self.storage.insert_sample(device_id, throughput_data):
                             success_count += 1
                             debug("Successfully stored throughput data for device: %s", device_name)
+
+                            # Check alert thresholds after successful data collection
+                            self._check_alert_thresholds(device_id, device_name, throughput_data)
                         else:
                             warning("Failed to store throughput data for device: %s", device_name)
                     else:
@@ -84,13 +91,8 @@ class ThroughputCollector:
                     exception("Error collecting data for device %s: %s", device_name, str(e))
                     continue
 
-            self.collection_count += 1
-            info("Collection cycle #%d complete: %d/%d devices successful",
-                 self.collection_count, success_count, len(enabled_devices))
-
-            # Run cleanup periodically (every 24 hours = ~5760 collections at 15s intervals)
-            if self.collection_count % 5760 == 0:
-                self._run_cleanup()
+            info("Collection cycle complete: %d/%d devices successful",
+                 success_count, len(enabled_devices))
 
         except Exception as e:
             exception("Error in collection cycle: %s", str(e))
@@ -111,6 +113,196 @@ class ThroughputCollector:
 
         except Exception as e:
             exception("Error during cleanup: %s", str(e))
+
+    def _check_alert_thresholds(self, device_id: str, device_name: str, throughput_data: Dict):
+        """
+        Check alert thresholds for collected metrics and trigger alerts if needed.
+
+        Args:
+            device_id: Device identifier
+            device_name: Device name for logging
+            throughput_data: Collected throughput data dictionary
+        """
+        print(f"[ALERT CHECK] ► Starting alert threshold check for device: {device_name} (ID: {device_id})")
+        sys.stdout.flush()
+        debug("Checking alert thresholds for device: %s", device_name)
+
+        try:
+            # Extract metrics from throughput data
+            metrics = {}
+
+            # Throughput metrics (already in Mbps from get_throughput_data)
+            if 'inbound_mbps' in throughput_data:
+                metrics['throughput_in'] = float(throughput_data['inbound_mbps'])
+            if 'outbound_mbps' in throughput_data:
+                metrics['throughput_out'] = float(throughput_data['outbound_mbps'])
+            if 'total_mbps' in throughput_data:
+                metrics['throughput_total'] = float(throughput_data['total_mbps'])
+
+            # CPU metrics (handle both direct value and nested dict)
+            if 'cpu_usage' in throughput_data:
+                metrics['cpu'] = float(throughput_data['cpu_usage'])
+            elif 'cpu' in throughput_data and isinstance(throughput_data['cpu'], dict):
+                # Extract from nested cpu dict (e.g., {'data_plane': X, 'management': Y})
+                if 'data_plane' in throughput_data['cpu']:
+                    metrics['cpu'] = float(throughput_data['cpu']['data_plane'])
+
+            # Memory metrics (handle both direct value and nested dict)
+            if 'memory_usage' in throughput_data:
+                metrics['memory'] = float(throughput_data['memory_usage'])
+            elif 'cpu' in throughput_data and isinstance(throughput_data['cpu'], dict):
+                # Memory might be in cpu dict
+                if 'memory' in throughput_data['cpu']:
+                    metrics['memory'] = float(throughput_data['cpu']['memory'])
+
+            # Session count (handle both direct value and nested dict)
+            if 'sessions' in throughput_data:
+                sessions_data = throughput_data['sessions']
+                if isinstance(sessions_data, dict):
+                    # Extract total from nested dict (e.g., {'total': X, 'tcp': Y, ...})
+                    if 'total' in sessions_data:
+                        metrics['sessions'] = float(sessions_data['total'])
+                else:
+                    metrics['sessions'] = float(sessions_data)
+
+            # Threat counts (handle nested dict)
+            if 'threats' in throughput_data and isinstance(throughput_data['threats'], dict):
+                threats_data = throughput_data['threats']
+                # Extract critical threat count
+                if 'critical_count' in threats_data:
+                    metrics['threats_critical'] = float(threats_data['critical_count'])
+                elif 'critical' in threats_data:
+                    metrics['threats_critical'] = float(threats_data['critical'])
+            elif 'threats_critical_count' in throughput_data:
+                metrics['threats_critical'] = float(throughput_data['threats_critical_count'])
+
+            # Interface errors (if available)
+            if 'interface_errors' in throughput_data:
+                metrics['interface_errors'] = float(throughput_data['interface_errors'])
+
+            print(f"[ALERT CHECK] Extracted {len(metrics)} metrics:")
+            sys.stdout.flush()
+            for metric_name, metric_value in metrics.items():
+                print(f"[ALERT CHECK]   - {metric_name}: {metric_value}")
+            sys.stdout.flush()
+            debug("Extracted %d metrics for threshold checking", len(metrics))
+
+            # Check thresholds using alert manager
+            triggered_alerts = alert_manager.check_thresholds(device_id, metrics)
+
+            print(f"[ALERT CHECK] alert_manager.check_thresholds() returned {len(triggered_alerts)} triggered alerts")
+            sys.stdout.flush()
+
+            if not triggered_alerts:
+                print(f"[ALERT CHECK] ✓ No alerts triggered for device: {device_name}")
+                sys.stdout.flush()
+
+            # Process triggered alerts with cooldown logic
+            current_time = datetime.utcnow()
+
+            for alert_info in triggered_alerts:
+                config = alert_info['config']
+                actual_value = alert_info['actual_value']
+                top_source = alert_info.get('top_source')  # Get source info for category alerts
+                alert_config_id = config['id']
+
+                print(f"[ALERT CHECK] ⚠ ALERT TRIGGERED!")
+                print(f"[ALERT CHECK]   Alert ID: {alert_config_id}")
+                print(f"[ALERT CHECK]   Metric: {config['metric_type']}")
+                print(f"[ALERT CHECK]   Threshold: {config['threshold_operator']} {config['threshold_value']}")
+                print(f"[ALERT CHECK]   Actual Value: {actual_value}")
+                print(f"[ALERT CHECK]   Severity: {config['severity']}")
+                if top_source:
+                    print(f"[ALERT CHECK]   Top Source: {top_source['ip']} ({top_source.get('hostname', 'N/A')})")
+                sys.stdout.flush()
+
+                # Check cooldown period to prevent alert spam (database-backed, persistent)
+                in_cooldown = alert_manager.check_cooldown(device_id, alert_config_id, _COOLDOWN_PERIOD_SECONDS)
+
+                print(f"[ALERT CHECK]   In cooldown: {in_cooldown}")
+                sys.stdout.flush()
+
+                if in_cooldown:
+                    debug(f"Alert {alert_config_id} still in cooldown period, skipping notification (will still record)")
+                    # Still record in history for audit trail, but don't send notification
+                    alert_manager.record_alert(
+                        config_id=alert_config_id,
+                        device_id=device_id,
+                        metric_type=config['metric_type'],
+                        threshold_value=config['threshold_value'],
+                        actual_value=actual_value,
+                        severity=config['severity'],
+                        message=f"[COOLDOWN] {format_alert_message(config['metric_type'], actual_value, config['threshold_value'], config['threshold_operator'], device_name, top_source)}"
+                    )
+                    continue  # Skip notification
+
+                # Format alert message
+                message = format_alert_message(
+                    metric_type=config['metric_type'],
+                    actual_value=actual_value,
+                    threshold_value=config['threshold_value'],
+                    operator=config['threshold_operator'],
+                    device_name=device_name,
+                    top_source=top_source
+                )
+
+                # Record alert in history
+                history_id = alert_manager.record_alert(
+                    config_id=alert_config_id,
+                    device_id=device_id,
+                    metric_type=config['metric_type'],
+                    threshold_value=config['threshold_value'],
+                    actual_value=actual_value,
+                    severity=config['severity'],
+                    message=message
+                )
+
+                if history_id:
+                    info("Alert triggered: %s (ID: %d)", message, history_id)
+                    print(f"[ALERT CHECK] ✓ Alert recorded in history (ID: {history_id})")
+                    sys.stdout.flush()
+
+                    # Set cooldown period in database (persistent across restarts)
+                    alert_manager.set_cooldown(device_id, alert_config_id, _COOLDOWN_PERIOD_SECONDS)
+                    debug(f"Alert {alert_config_id} cooldown started ({_COOLDOWN_PERIOD_SECONDS}s)")
+                    print(f"[ALERT CHECK] ✓ Cooldown started ({_COOLDOWN_PERIOD_SECONDS}s = 15 minutes)")
+                    sys.stdout.flush()
+
+                    # Send notifications via configured channels
+                    try:
+                        print(f"[ALERT CHECK] Sending notifications to channels: {config.get('notification_channels', [])}")
+                        sys.stdout.flush()
+                        notification_result = notification_manager.send_alert(
+                            alert_config=config,
+                            message=message,
+                            history_id=history_id,
+                            device_name=device_name,
+                            actual_value=actual_value
+                        )
+                        print(f"[ALERT CHECK] ✓ Notification result:")
+                        sys.stdout.flush()
+                        for channel, result in notification_result.items():
+                            if result['enabled']:
+                                status = "✓ SENT" if result['sent'] else f"✗ FAILED: {result.get('error', 'Unknown')}"
+                                print(f"[ALERT CHECK]     {channel}: {status}")
+                        sys.stdout.flush()
+                        debug(f"Notification result: {notification_result}")
+                    except Exception as notify_error:
+                        print(f"[ALERT CHECK] ✗ ERROR sending notification: {notify_error}")
+                        sys.stdout.flush()
+                        exception(f"Error sending notification: {notify_error}")
+                else:
+                    print(f"[ALERT CHECK] ✗ Failed to record alert in database!")
+                    sys.stdout.flush()
+                    warning("Failed to record alert for device: %s", device_name)
+
+            if triggered_alerts:
+                info("Processed %d triggered alerts for device: %s", len(triggered_alerts), device_name)
+
+        except Exception as e:
+            print(f"[ALERT CHECK] ✗ EXCEPTION: {str(e)}")
+            sys.stdout.flush()
+            exception("Error checking alert thresholds for device %s: %s", device_name, str(e))
 
     # ========================================================================
     # Phase 3: Detailed Log Collection Methods

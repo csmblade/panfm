@@ -63,53 +63,20 @@ debug(f"Service port database loaded with {len(service_db)} entries")
 from encryption import check_key_permissions
 check_key_permissions()
 
-# Initialize APScheduler (BackgroundScheduler)
-from apscheduler.schedulers.background import BackgroundScheduler
+# NOTE: Scheduled tasks (throughput collection, database cleanup, alerts) are now handled
+# by the separate clock.py process. This keeps the Flask web server lightweight and
+# follows production best practices for separating web and background task concerns.
+#
+# However, the web server DOES need read-only access to the throughput database
+# to serve historical data via API endpoints.
 from config import THROUGHPUT_DB_FILE, load_settings
-from throughput_collector import init_collector, get_collector
-from logger import info, exception
-
-# Load settings for throughput collection
+from throughput_collector import init_collector
 settings = load_settings()
 retention_days = settings.get('throughput_retention_days', 90)
-collection_enabled = settings.get('throughput_collection_enabled', True)
-refresh_interval = settings.get('refresh_interval', 60)
-
-if collection_enabled:
-    info("Initializing throughput collector with %d-day retention", retention_days)
-    collector = init_collector(THROUGHPUT_DB_FILE, retention_days)
-
-# Initialize BackgroundScheduler
-scheduler = BackgroundScheduler(timezone='UTC')
-
-if collection_enabled:
-    # Define collection function
-    def run_collection():
-        """Scheduled job to collect throughput data from all devices."""
-        try:
-            collector_instance = get_collector()
-            if collector_instance:
-                info("Running scheduled throughput collection...")
-                collector_instance.collect_all_devices()
-                info("Scheduled throughput collection completed")
-        except Exception as e:
-            exception("Error in scheduled collection: %s", str(e))
-
-    # Add job to scheduler
-    scheduler.add_job(
-        func=run_collection,
-        trigger='interval',
-        seconds=refresh_interval,
-        id='collect_throughput',
-        name='Throughput Data Collection',
-        replace_existing=True
-    )
-
-    # Start the scheduler
-    scheduler.start()
-    info("APScheduler started successfully (%d-second interval)", refresh_interval)
-else:
-    info("Throughput collection disabled in settings")
+if settings.get('throughput_collection_enabled', True):
+    debug(f"Initializing throughput collector (read-only access for web server)")
+    init_collector(THROUGHPUT_DB_FILE, retention_days)
+    debug("Throughput collector initialized (database access only, no scheduled collection)")
 
 # Register all routes
 from routes import register_routes
@@ -119,9 +86,6 @@ if __name__ == '__main__':
     # Get debug mode from environment variable (default: False for production)
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-    # Register shutdown handler to stop scheduler cleanly
-    import atexit
-    atexit.register(lambda: scheduler.shutdown() if scheduler else None)
-
-    print("Starting Flask app...")
-    app.run(debug=debug_mode, host='0.0.0.0', port=3000, use_reloader=False)
+    print("Starting Flask app (web server only)...")
+    print("Scheduled tasks are handled by separate clock.py process")
+    app.run(debug=debug_mode, host='0.0.0.0', port=3000, use_reloader=False, threaded=True)

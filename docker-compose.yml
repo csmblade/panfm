@@ -7,7 +7,7 @@ services:
     volumes:
       # Persist data files (create these as files first, not directories)
       # Run setup.sh before starting to create all required files
-      # Files: settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json throughput_history.db
+      # Files: settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json throughput_history.db alerts.db
       - ./settings.json:/app/settings.json
       - ./devices.json:/app/devices.json
       - ./encryption.key:/app/encryption.key
@@ -16,9 +16,29 @@ services:
       - ./mac_vendor_db.json:/app/mac_vendor_db.json
       - ./service_port_db.json:/app/service_port_db.json
       - ./throughput_history.db:/app/throughput_history.db
+      - ./alerts.db:/app/alerts.db
     environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=True
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
     restart: unless-stopped
-    # Override CMD for development with auto-reload
     command: python app.py
+
+  panfm-clock:
+    build: .
+    container_name: panfm-clock
+    volumes:
+      # Clock process shares same data files as web service
+      - ./settings.json:/app/settings.json
+      - ./devices.json:/app/devices.json
+      - ./encryption.key:/app/encryption.key
+      - ./device_metadata.json:/app/device_metadata.json
+      - ./mac_vendor_db.json:/app/mac_vendor_db.json
+      - ./service_port_db.json:/app/service_port_db.json
+      - ./throughput_history.db:/app/throughput_history.db
+      - ./alerts.db:/app/alerts.db
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    command: python -u clock.py

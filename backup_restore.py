@@ -1,6 +1,6 @@
 """
 Backup & Restore Manager for PANfm
-Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, and Throughput History.
+Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, Throughput History, and Notification Channels.
 All backups are encrypted and timestamped.
 """
 import os
@@ -16,7 +16,7 @@ from logger import debug, info, warning, error, exception
 
 def create_full_backup():
     """
-    Create comprehensive backup of Settings, Devices, Metadata, Throughput History, and Encryption Key.
+    Create comprehensive backup of Settings, Devices, Metadata, Throughput History, Notification Channels, and Encryption Key.
 
     SECURITY WARNING: The backup includes the encryption key, which allows decryption
     of all sensitive data. Backup files must be stored securely (encrypted drive,
@@ -28,12 +28,16 @@ def create_full_backup():
                   'version': '1.6.0',
                   'timestamp': 'ISO-8601 timestamp',
                   'encryption_key': 'base64-encoded key',  # SENSITIVE
-                  'settings': {...},
+                  'settings': {...},  # Includes alert_notification_channels
                   'devices': {...},
                   'metadata': {...},
                   'throughput_db': 'base64-encoded SQLite database'  # NEW in v1.6.0
               }
         None: On error
+
+    Note: Notification channel configurations (email, Slack, webhook) are stored
+    within settings under 'alert_notification_channels' and are automatically
+    backed up with settings.
     """
     debug("Creating full site backup")
     try:

@@ -200,6 +200,9 @@ class ThroughputStorage:
         # Run schema migration for Phase 2 (adds new columns)
         self._migrate_schema_phase2()
 
+        # Run schema migration for Phase 3 (adds category support)
+        self._migrate_schema_phase3()
+
     def _migrate_schema_phase2(self):
         """
         Migrate database schema for Phase 2: Full Dashboard Database-First Architecture.
@@ -261,6 +264,51 @@ class ThroughputStorage:
             exception("Error during Phase 2 schema migration: %s", str(e))
             # Don't raise - allow app to continue with existing schema
 
+    def _migrate_schema_phase3(self):
+        """
+        Migrate database schema for Phase 3: Category-based alerting.
+
+        Adds categories_json column for storing application category traffic data.
+        Safe to run multiple times (uses ALTER TABLE with error handling).
+        """
+        debug("Checking for Phase 3 schema migration (categories)")
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # List of new columns to add for Phase 3
+            new_columns = [
+                ('categories_json', 'TEXT'),  # JSON object of category traffic: {category_name: {bytes, sessions}}
+            ]
+
+            # Attempt to add each column
+            columns_added = 0
+            for col_name, col_type in new_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE throughput_samples ADD COLUMN {col_name} {col_type}")
+                    columns_added += 1
+                    debug(f"Added column: {col_name}")
+                except sqlite3.OperationalError as e:
+                    if 'duplicate column name' in str(e).lower():
+                        # Column already exists, this is fine
+                        pass
+                    else:
+                        # Some other error
+                        warning(f"Error adding column {col_name}: {e}")
+
+            conn.commit()
+            conn.close()
+
+            if columns_added > 0:
+                info(f"Phase 3 schema migration: added {columns_added} new column(s)")
+            else:
+                debug("Phase 3 schema already up to date")
+
+        except Exception as e:
+            exception("Error during Phase 3 schema migration: %s", str(e))
+            # Don't raise - allow app to continue with existing schema
+
     def _format_uptime_seconds(self, uptime_seconds: Optional[int]) -> Optional[str]:
         """
         Convert uptime in seconds to human-readable format.
@@ -313,6 +361,7 @@ class ThroughputStorage:
             # Serialize JSON fields
             top_apps_json = json.dumps(sample_data.get('top_applications', [])) if sample_data.get('top_applications') else None
             interface_stats_json = json.dumps(sample_data.get('interface_stats', [])) if sample_data.get('interface_stats') else None
+            categories_json = json.dumps(sample_data.get('categories', {})) if sample_data.get('categories') else None
 
             cursor.execute('''
                 INSERT INTO throughput_samples (
@@ -327,8 +376,9 @@ class ThroughputStorage:
                     interface_errors, interface_drops, interface_stats_json,
                     license_expired, license_licensed,
                     wan_ip, wan_speed,
-                    hostname, uptime_seconds, pan_os_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    hostname, uptime_seconds, pan_os_version,
+                    categories_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 device_id,
                 timestamp,
@@ -367,7 +417,9 @@ class ThroughputStorage:
                 # Phase 2 fields: System
                 sample_data.get('hostname'),
                 sample_data.get('uptime_seconds'),
-                sample_data.get('pan_os_version')
+                sample_data.get('pan_os_version'),
+                # Phase 3 fields: Categories (JSON)
+                categories_json
             ))
 
             conn.commit()
