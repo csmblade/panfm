@@ -345,8 +345,27 @@ function renderConnectedDevicesTable() {
     const zoneFilter = document.getElementById('connectedDevicesZoneFilter')?.value || '';
     const limit = parseInt(document.getElementById('connectedDevicesLimit')?.value || '50');
 
+    // Enrich devices with metadata from cache
+    const enrichedDevices = allConnectedDevices.map(device => {
+        const normalizedMac = device.mac.toLowerCase();
+        const metadata = deviceMetadataCache[normalizedMac];
+
+        if (metadata) {
+            // Create enriched device object with metadata fields
+            return {
+                ...device,
+                custom_name: metadata.name || device.custom_name,
+                location: metadata.location || device.location,
+                tags: metadata.tags || device.tags || [],
+                comment: metadata.comment || device.comment,
+                original_hostname: device.hostname // Preserve original hostname
+            };
+        }
+        return device;
+    });
+
     // Filter devices
-    let filteredDevices = allConnectedDevices.filter(device => {
+    let filteredDevices = enrichedDevices.filter(device => {
         // Search filter (includes tags, custom names, location, comments)
         if (searchTerm) {
             const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
@@ -600,16 +619,17 @@ function escapeHtml(text) {
 // ============================================================================
 
 // Export state and functions via window.ConnectedDevices namespace
+// Use getters to ensure we always return current state (not snapshot at assignment time)
 window.ConnectedDevices = {
-    // State
-    allDevices: allConnectedDevices,
-    metadata: connectedDevicesMetadata,
-    sortBy: connectedDevicesSortBy,
-    sortDesc: connectedDevicesSortDesc,
-    metadataCache: deviceMetadataCache,
-    expandedRows: expandedRows,
-    tagsCache: allTagsCache,
-    locationsCache: allLocationsCache,
+    // State - Use getters to maintain references
+    get allDevices() { return allConnectedDevices; },
+    get metadata() { return connectedDevicesMetadata; },
+    get sortBy() { return connectedDevicesSortBy; },
+    get sortDesc() { return connectedDevicesSortDesc; },
+    get metadataCache() { return deviceMetadataCache; },
+    get expandedRows() { return expandedRows; },
+    get tagsCache() { return allTagsCache; },
+    get locationsCache() { return allLocationsCache; },
 
     // Functions
     loadConnectedDevices: loadConnectedDevices,

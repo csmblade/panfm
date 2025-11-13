@@ -7,14 +7,17 @@ from utils import api_request_get
 from logger import debug, exception
 
 
-def get_firewall_config():
+def get_firewall_config(device_id=None):
     """Import get_firewall_config from firewall_api to avoid circular import"""
     from firewall_api import get_firewall_config as _get_firewall_config
-    return _get_firewall_config()
+    return _get_firewall_config(device_id)
 
 
-def get_system_resources():
+def get_system_resources(device_id=None):
     """Fetch system resource usage (CPU, memory, uptime) from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
 
     Returns:
         dict: Resource metrics including:
@@ -25,9 +28,9 @@ def get_system_resources():
             - memory_used_mb: Memory used in MB
             - memory_total_mb: Total memory in MB
     """
-    debug("get_system_resources called")
+    debug("get_system_resources called (device_id=%s)", device_id)
     try:
-        _, api_key, base_url = get_firewall_config()
+        _, api_key, base_url = get_firewall_config(device_id)
 
         # Check if no device is configured
         if not api_key or not base_url:
@@ -216,8 +219,11 @@ def get_system_resources():
         return {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'uptime': None, 'memory_used_pct': 0, 'memory_used_mb': 0, 'memory_total_mb': 0}
 
 
-def get_interface_stats():
+def get_interface_stats(device_id=None):
     """Fetch interface statistics from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
 
     Returns:
         dict: Interface statistics including:
@@ -225,9 +231,9 @@ def get_interface_stats():
             - total_errors: Sum of all input/output errors
             - total_drops: Sum of all input drops
     """
-    debug("get_interface_stats called")
+    debug("get_interface_stats called (device_id=%s)", device_id)
     try:
-        _, api_key, base_url = get_firewall_config()
+        _, api_key, base_url = get_firewall_config(device_id)
 
         # Check if no device is configured
         if not api_key or not base_url:
@@ -371,8 +377,11 @@ def get_interface_traffic_counters():
         return {}
 
 
-def get_session_count():
+def get_session_count(device_id=None):
     """Fetch session count from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
 
     Returns:
         dict: Session counts including:
@@ -381,9 +390,9 @@ def get_session_count():
             - udp: UDP sessions
             - icmp: ICMP sessions
     """
-    debug("get_session_count called")
+    debug("get_session_count called (device_id=%s)", device_id)
     try:
-        _, api_key, base_url = get_firewall_config()
+        _, api_key, base_url = get_firewall_config(device_id)
 
         # Check if no device is configured
         if not api_key or not base_url:

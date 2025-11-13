@@ -277,6 +277,22 @@ ALERT_TEMPLATES = {
                 'description': 'Interface errors detected'
             }
         ]
+    },
+
+    'high_bandwidth_usage': {
+        'name': 'High Bandwidth Usage',
+        'description': 'Monitor for devices downloading/uploading 1GB+ in 5 minutes - identifies specific IP addresses and hostnames',
+        'category': 'Traffic Monitoring',
+        'severity': 'warning',
+        'alerts': [
+            {
+                'metric_type': 'per_ip_bandwidth_5min',
+                'threshold_value': 1024.0,
+                'threshold_operator': '>',
+                'severity': 'warning',
+                'description': 'Device exceeded 1GB transfer in 5 minutes (alert shows IP address and hostname)'
+            }
+        ]
     }
 }
 
@@ -508,11 +524,11 @@ QUICK_START_RECOMMENDATIONS = {
         'channels': ['email', 'slack', 'webhook'],
         'description': 'Maximum security monitoring with all channels'
     },
-    'capacity_focused': {
-        'name': 'Capacity Management',
-        'templates': ['capacity_planning', 'session_limits', 'network_performance'],
-        'channels': ['email'],
-        'description': 'Focus on capacity planning and growth tracking'
+    'traffic_monitoring': {
+        'name': 'Traffic Monitoring',
+        'templates': ['high_bandwidth_usage'],
+        'channels': ['slack'],
+        'description': 'Monitor IP addresses downloading 1GB+ in 5 minutes with hostname lookup'
     }
 }
 

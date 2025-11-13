@@ -5,6 +5,9 @@
 
 // ===== Alert Configuration Management =====
 
+// Store configs globally for edit function
+let alertConfigs = [];
+
 async function loadAlertConfigs(deviceId = null) {
     console.log('Loading alert configurations...');
     await loadDeviceNamesCache();  // Load device names first
@@ -31,6 +34,10 @@ async function loadAlertConfigs(deviceId = null) {
 
 function renderAlertConfigs(configs) {
     console.log('[DEBUG] renderAlertConfigs called with', configs.length, 'configs:', configs);
+
+    // Store configs globally for edit function
+    alertConfigs = configs;
+
     const container = document.getElementById('alertConfigsTable');
     if (!container) {
         console.error('[ERROR] alertConfigsTable container not found!');
@@ -39,6 +46,7 @@ function renderAlertConfigs(configs) {
 
     if (configs.length === 0) {
         console.log('[DEBUG] No configs to render, showing empty message');
+        alertConfigs = [];
         container.innerHTML = '<p style="color: #999; text-align: center; padding: 40px; font-family: var(--font-secondary);">No alert configurations found. Create your first alert using the buttons above.</p>';
         return;
     }
@@ -49,14 +57,14 @@ function renderAlertConfigs(configs) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #FA582D; color: white;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Metric</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Threshold</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Severity</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Channels</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Status</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary); border-bottom: 2px solid #FA582D;">Actions</th>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Metric</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Threshold</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Channels</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -69,25 +77,25 @@ function renderAlertConfigs(configs) {
             'info': '#17a2b8'
         };
         const severityColor = severityColors[config.severity] || '#6c757d';
-        const rowBg = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
 
         html += `
-            <tr style="background: ${rowBg}; transition: background 0.2s;" onmouseover="this.style.background='#fff3e6'" onmouseout="this.style.background='${rowBg}'">
-                <td style="padding: 12px; color: #333; font-size: 0.9em; border-bottom: 1px solid #ddd;"><strong>${escapeHtml(getDeviceNameById(config.device_id))}</strong></td>
-                <td style="padding: 12px; color: #555; font-size: 0.85em; border-bottom: 1px solid #ddd;">${formatMetricName(config.metric_type)}</td>
-                <td style="padding: 12px; color: #555; font-size: 0.85em; border-bottom: 1px solid #ddd;"><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">${config.threshold_operator} ${config.threshold_value}</code></td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #ddd;">
+            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 12px; color: #333;"><strong>${escapeHtml(getDeviceNameById(config.device_id))}</strong></td>
+                <td style="padding: 12px; color: #666;">${formatMetricName(config.metric_type)}</td>
+                <td style="padding: 12px; color: #666;"><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">${config.threshold_operator} ${config.threshold_value}</code></td>
+                <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${config.severity}</span>
                 </td>
-                <td style="padding: 12px; color: #555; font-size: 0.85em; border-bottom: 1px solid #ddd;">${(config.notification_channels || []).join(', ') || 'None'}</td>
-                <td style="padding: 12px; text-align: center; font-size: 0.85em; border-bottom: 1px solid #ddd;">
+                <td style="padding: 12px; color: #666;">${(config.notification_channels || []).join(', ') || 'None'}</td>
+                <td style="padding: 12px; text-align: center;">
                     ${config.enabled ?
                         '<span style="color: #28a745; font-weight: 600;">✓ Enabled</span>' :
                         '<span style="color: #6c757d;">✗ Disabled</span>'}
                 </td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #ddd;">
-                    <button onclick="editAlertConfig(${config.id})" style="padding: 6px 12px; margin: 0 4px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border: none; border-radius: 6px; font-size: 0.8em; font-weight: 600; cursor: pointer; transition: transform 0.2s; font-family: var(--font-primary);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">Edit</button>
-                    <button onclick="deleteAlertConfig(${config.id})" style="padding: 6px 12px; margin: 0 4px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; border: none; border-radius: 6px; font-size: 0.8em; font-weight: 600; cursor: pointer; transition: transform 0.2s; font-family: var(--font-primary);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">Delete</button>
+                <td style="padding: 12px; text-align: center;">
+                    <button onclick="editAlertConfig(${config.id})" style="padding: 6px 12px; margin: 0 4px; background: #ff6600; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Edit</button>
+                    <button onclick="deleteAlertConfig(${config.id})" style="padding: 6px 12px; margin: 0 4px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Delete</button>
                 </td>
             </tr>
         `;
@@ -108,6 +116,7 @@ function renderAlertConfigs(configs) {
 
 function showCreateAlertModal() {
     document.getElementById('alertConfigModal').style.display = 'flex';
+    document.getElementById('alertConfigModalTitle').textContent = 'Create Alert';
     document.getElementById('alertConfigForm').reset();
     document.getElementById('alertConfigId').value = '';
     loadDevicesIntoDropdown('alertConfigDeviceId');
@@ -117,6 +126,7 @@ function showCreateAlertModal() {
 
 function showCreateApplicationAlertModal() {
     document.getElementById('alertConfigModal').style.display = 'flex';
+    document.getElementById('alertConfigModalTitle').textContent = 'Create Alert';
     document.getElementById('alertConfigForm').reset();
     document.getElementById('alertConfigId').value = '';
     loadDevicesIntoDropdown('alertConfigDeviceId');
@@ -141,6 +151,46 @@ function showCreateApplicationAlertModal() {
             }
         });
     }, 100);
+}
+
+function editAlertConfig(id) {
+    console.log('[editAlertConfig] Editing alert config ID:', id);
+
+    // Find the config in the loaded configs array
+    const config = alertConfigs.find(c => c.id === id);
+    if (!config) {
+        console.error('[editAlertConfig] Alert configuration not found for ID:', id);
+        showError('Alert configuration not found');
+        return;
+    }
+
+    console.log('[editAlertConfig] Found config:', config);
+
+    // Show modal
+    document.getElementById('alertConfigModal').style.display = 'flex';
+
+    // Change modal title to "Edit Alert"
+    document.getElementById('alertConfigModalTitle').textContent = 'Edit Alert';
+
+    // Populate form fields with existing values
+    document.getElementById('alertConfigId').value = id;
+    document.getElementById('alertConfigDeviceId').value = config.device_id;
+    document.getElementById('alertConfigMetricType').value = config.metric_type;
+    document.getElementById('alertConfigThreshold').value = config.threshold_value;
+    document.getElementById('alertConfigOperator').value = config.threshold_operator;
+    document.getElementById('alertConfigSeverity').value = config.severity;
+    document.getElementById('alertConfigEnabled').checked = config.enabled;
+
+    // Handle notification channels (multi-select)
+    const channelsSelect = document.getElementById('alertConfigChannels');
+    Array.from(channelsSelect.options).forEach(option => {
+        option.selected = (config.notification_channels || []).includes(option.value);
+    });
+
+    // Load devices into dropdown
+    loadDevicesIntoDropdown('alertConfigDeviceId');
+
+    console.log('[editAlertConfig] Modal populated with config data');
 }
 
 async function loadApplicationsForDevice() {
@@ -324,43 +374,50 @@ function renderAlertHistory(history) {
     }
 
     let html = `
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Device</th>
-                    <th>Message</th>
-                    <th>Severity</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
 
-    history.forEach(alert => {
-        const severityClass = alert.severity === 'critical' ? 'severity-critical' :
-                            alert.severity === 'warning' ? 'severity-warning' : 'severity-info';
+    history.forEach((alert, index) => {
+        const severityColors = {
+            'critical': '#dc3545',
+            'warning': '#ffc107',
+            'info': '#17a2b8'
+        };
+        const severityColor = severityColors[alert.severity] || '#6c757d';
+        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
 
-        const statusText = alert.resolved_at ? '✓ Resolved' :
-                          alert.acknowledged_at ? '⚠ Acknowledged' : '🔴 Active';
+        const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
 
         html += `
-            <tr>
-                <td>${formatTimestamp(alert.triggered_at)}</td>
-                <td>${escapeHtml(getDeviceNameById(alert.device_id))}</td>
-                <td>${escapeHtml(alert.message)}</td>
-                <td><span class="severity-badge ${severityClass}">${alert.severity}</span></td>
-                <td>${statusText}</td>
-                <td>
-                    ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" class="btn-small">Acknowledge</button>` : ''}
-                    ${!alert.resolved_at ? `<button onclick="resolveAlert(${alert.id})" class="btn-small btn-success">Resolve</button>` : ''}
+            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 12px; color: #333;">${formatTimestamp(alert.triggered_at)}</td>
+                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #666;">${escapeHtml(alert.message)}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
+                </td>
+                <td style="padding: 12px; text-align: center; color: #666;">${statusText}</td>
+                <td style="padding: 12px; text-align: center;">
+                    ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
+                    ${!alert.resolved_at ? `<button onclick="resolveAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Resolve</button>` : ''}
                 </td>
             </tr>
         `;
     });
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
@@ -379,7 +436,10 @@ function acknowledgeAlert(id) {
     .then(result => {
         if (result.status === 'success') {
             loadAlertHistory();
-            showSuccess('Alert acknowledged');
+            loadAlertStats(); // Update statistics
+            // Refresh modals if they're open
+            refreshOpenModals();
+            // No alert box - just silently acknowledge
         } else {
             showError(result.message || 'Failed to acknowledge alert');
         }
@@ -390,6 +450,10 @@ function acknowledgeAlert(id) {
     });
 }
 
+/**
+ * Resolve an alert
+ * @param {number} id - Alert history ID
+ */
 function resolveAlert(id) {
     const reason = prompt('Enter resolution reason (optional):') || 'Manually resolved';
 
@@ -400,14 +464,18 @@ function resolveAlert(id) {
             'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
-            resolved_reason: reason
+            resolved_reason: reason,
+            resolved_by: 'admin'  // TODO: Get from session
         })
     })
     .then(response => response.json())
     .then(result => {
         if (result.status === 'success') {
             loadAlertHistory();
-            showSuccess('Alert resolved');
+            loadAlertStats(); // Update statistics
+            // Refresh modals if they're open
+            refreshOpenModals();
+            // No alert box - just silently resolve
         } else {
             showError(result.message || 'Failed to resolve alert');
         }
@@ -418,6 +486,49 @@ function resolveAlert(id) {
     });
 }
 
+// Helper function to refresh open modals
+function refreshOpenModals() {
+    const infoModal = document.getElementById('infoAlertsModal');
+    const warningModal = document.getElementById('warningAlertsModal');
+    const criticalModal = document.getElementById('criticalAlertsModal');
+
+    if (infoModal && infoModal.style.display === 'flex') {
+        // Refresh INFO alerts modal
+        fetch('/api/alerts/history?unresolved=true&severity=info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderAlertsInTable(data.data, 'infoAlertsTable', 'No info alerts at this time.');
+                }
+            })
+            .catch(error => console.error('Error refreshing info alerts modal:', error));
+    }
+
+    if (warningModal && warningModal.style.display === 'flex') {
+        // Refresh WARNING alerts modal
+        fetch('/api/alerts/history?unresolved=true&severity=warning')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderAlertsInTable(data.data, 'warningAlertsTable', 'No warning alerts at this time.');
+                }
+            })
+            .catch(error => console.error('Error refreshing warning alerts modal:', error));
+    }
+
+    if (criticalModal && criticalModal.style.display === 'flex') {
+        // Refresh CRITICAL alerts modal
+        fetch('/api/alerts/history?unresolved=true&severity=critical')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderAlertsInTable(data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
+                }
+            })
+            .catch(error => console.error('Error refreshing critical alerts modal:', error));
+    }
+}
+
 // ===== Alert Statistics =====
 
 function loadAlertStats() {
@@ -426,6 +537,7 @@ function loadAlertStats() {
         .then(data => {
             if (data.status === 'success') {
                 renderAlertStats(data.data);
+                loadLatestAlertsBySeverity();  // Load latest alerts for cards
             }
         })
         .catch(error => {
@@ -434,16 +546,58 @@ function loadAlertStats() {
 }
 
 function renderAlertStats(stats) {
-    // Update individual stat tiles
-    const rulesEl = document.getElementById('alertStatsRules');
-    const activeEl = document.getElementById('alertStatsActive');
+    // Update individual stat tiles (new 3-card layout: INFO, WARNING, CRITICAL)
+    const infoEl = document.getElementById('alertStatsInfo');
+    const warningEl = document.getElementById('alertStatsWarning');
     const criticalEl = document.getElementById('alertStatsCritical');
-    const warningsEl = document.getElementById('alertStatsWarnings');
 
-    if (rulesEl) rulesEl.textContent = stats.total_configs || 0;
-    if (activeEl) activeEl.textContent = stats.unresolved_alerts || 0;
+    if (infoEl) infoEl.textContent = stats.info_alerts || 0;
+    if (warningEl) warningEl.textContent = stats.warning_alerts || 0;
     if (criticalEl) criticalEl.textContent = stats.critical_alerts || 0;
-    if (warningsEl) warningsEl.textContent = stats.warning_alerts || 0;
+}
+
+// Load latest alerts for each severity card (unacknowledged only)
+async function loadLatestAlertsBySeverity() {
+    try {
+        // Fetch latest unacknowledged INFO alert
+        const infoResp = await fetch('/api/alerts/history?unresolved=true&severity=info&limit=100');
+        const infoData = await infoResp.json();
+        // Filter for unacknowledged (acknowledged_at is null)
+        const unackInfo = infoData.status === 'success' ? infoData.data.filter(a => !a.acknowledged_at) : [];
+        const latestInfo = unackInfo.length > 0 ? unackInfo[0] : null;
+
+        // Fetch latest unacknowledged WARNING alert
+        const warningResp = await fetch('/api/alerts/history?unresolved=true&severity=warning&limit=100');
+        const warningData = await warningResp.json();
+        const unackWarning = warningData.status === 'success' ? warningData.data.filter(a => !a.acknowledged_at) : [];
+        const latestWarning = unackWarning.length > 0 ? unackWarning[0] : null;
+
+        // Fetch latest unacknowledged CRITICAL alert
+        const criticalResp = await fetch('/api/alerts/history?unresolved=true&severity=critical&limit=100');
+        const criticalData = await criticalResp.json();
+        const unackCritical = criticalData.status === 'success' ? criticalData.data.filter(a => !a.acknowledged_at) : [];
+        const latestCritical = unackCritical.length > 0 ? unackCritical[0] : null;
+
+        // Update card displays
+        updateLatestAlertOnCard('alertLatestInfo', latestInfo);
+        updateLatestAlertOnCard('alertLatestWarning', latestWarning);
+        updateLatestAlertOnCard('alertLatestCritical', latestCritical);
+
+    } catch (error) {
+        console.error('Error loading latest alerts:', error);
+    }
+}
+
+function updateLatestAlertOnCard(elementId, alert) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    if (alert) {
+        const message = alert.message.length > 60 ? alert.message.substring(0, 60) + '...' : alert.message;
+        el.innerHTML = `<div style="font-size: 0.7em; margin-top: 8px; opacity: 0.85; line-height: 1.3;">${escapeHtml(message)}</div>`;
+    } else {
+        el.innerHTML = '<div style="font-size: 0.7em; margin-top: 8px; opacity: 0.6;">No active alerts</div>';
+    }
 }
 
 // ===== Notification Testing =====
@@ -911,6 +1065,11 @@ function initAlertsPage() {
     loadAlertConfigs();
     loadAlertHistory(false);
 
+    // Load notification channel settings (from settings.js)
+    if (typeof loadNotificationChannels === 'function') {
+        loadNotificationChannels();
+    }
+
     // Clear any existing interval
     if (alertsRefreshInterval) {
         clearInterval(alertsRefreshInterval);
@@ -1115,38 +1274,506 @@ function renderAlertHistoryInModal(alerts) {
 
     let html = `
         <div style="overflow-x: auto;">
-            <table class="data-table" style="width: 100%;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Device</th>
-                        <th>Metric</th>
-                        <th>Value</th>
-                        <th>Severity</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Metric</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Value</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-    alerts.forEach(alert => {
-        const severityClass = alert.severity === 'critical' ? 'severity-critical' :
-                            alert.severity === 'warning' ? 'severity-warning' : 'severity-info';
+    alerts.forEach((alert, index) => {
+        const severityColors = {
+            'critical': '#dc3545',
+            'warning': '#ffc107',
+            'info': '#17a2b8'
+        };
+        const severityColor = severityColors[alert.severity] || '#6c757d';
+        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
         const time = new Date(alert.triggered_at).toLocaleString();
         const isResolved = alert.resolved_at != null;
 
         html += `
-            <tr>
-                <td>${time}</td>
-                <td>${escapeHtml(getDeviceNameById(alert.device_id))}</td>
-                <td>${formatMetricName(alert.metric_type)}</td>
-                <td>${alert.actual_value.toFixed(2)}</td>
-                <td><span class="severity-badge ${severityClass}">${alert.severity}</span></td>
-                <td>${isResolved ? '✓ Resolved' : '⚠ Active'}</td>
-                <td>
-                    ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" class="btn-small">Acknowledge</button>` : ''}
-                    ${!isResolved ? `<button onclick="resolveAlert(${alert.id})" class="btn-small">Resolve</button>` : ''}
+            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 12px; color: #333;">${time}</td>
+                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #666;">${formatMetricName(alert.metric_type)}</td>
+                <td style="padding: 12px; color: #666;">${alert.actual_value.toFixed(2)}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
+                </td>
+                <td style="padding: 12px; text-align: center; color: #666;">${isResolved ? '✓ Resolved' : '⚠ Active'}</td>
+                <td style="padding: 12px; text-align: center;">
+                    ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
+                    ${!isResolved ? `<button onclick="resolveAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Resolve</button>` : ''}
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+// ===== Active Alerts and Critical Alerts Modals =====
+
+function showActiveAlertsModal() {
+    console.log('Showing active alerts modal...');
+    document.getElementById('activeAlertsModal').style.display = 'flex';
+
+    // Fetch active alerts (unresolved)
+    fetch('/api/alerts/history?unresolved=true')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                renderAlertsInTable(data.data, 'activeAlertsTable', 'No active alerts at this time.');
+            } else {
+                document.getElementById('activeAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading active alerts</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading active alerts:', error);
+            document.getElementById('activeAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading active alerts</p>';
+        });
+}
+
+function closeActiveAlertsModal() {
+    document.getElementById('activeAlertsModal').style.display = 'none';
+}
+
+function showCriticalAlertsModal() {
+    console.log('Showing critical alerts modal...');
+    document.getElementById('criticalAlertsModal').style.display = 'flex';
+
+    // Fetch all unacknowledged + last 5 acknowledged critical alerts
+    Promise.all([
+        fetch('/api/alerts/history?unresolved=true&severity=critical&limit=100').then(r => r.json()),
+        fetch('/api/alerts/history?acknowledged=true&severity=critical&limit=5').then(r => r.json())
+    ])
+        .then(([unresolvedData, ackData]) => {
+            if (unresolvedData.status === 'success' && ackData.status === 'success') {
+                // Filter unresolved to only get unacknowledged (acknowledged_at is null)
+                const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
+                // Combine: unacknowledged first, then acknowledged (max 5)
+                const combinedAlerts = [...unackAlerts, ...ackData.data];
+                renderAlertsInTable(combinedAlerts, 'criticalAlertsTable', 'No critical alerts.');
+            } else {
+                document.getElementById('criticalAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading critical alerts</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading critical alerts:', error);
+            document.getElementById('criticalAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading critical alerts</p>';
+        });
+}
+
+function closeCriticalAlertsModal() {
+    document.getElementById('criticalAlertsModal').style.display = 'none';
+}
+
+// INFO Alerts Modal
+function showInfoAlertsModal() {
+    console.log('Showing info alerts modal...');
+    document.getElementById('infoAlertsModal').style.display = 'flex';
+
+    // Fetch all unacknowledged + last 5 acknowledged info alerts
+    Promise.all([
+        fetch('/api/alerts/history?unresolved=true&severity=info&limit=100').then(r => r.json()),
+        fetch('/api/alerts/history?acknowledged=true&severity=info&limit=5').then(r => r.json())
+    ])
+        .then(([unresolvedData, ackData]) => {
+            if (unresolvedData.status === 'success' && ackData.status === 'success') {
+                // Filter unresolved to only get unacknowledged (acknowledged_at is null)
+                const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
+                // Combine: unacknowledged first, then acknowledged (max 5)
+                const combinedAlerts = [...unackAlerts, ...ackData.data];
+                renderAlertsInTable(combinedAlerts, 'infoAlertsTable', 'No info alerts.');
+            } else {
+                document.getElementById('infoAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading info alerts</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading info alerts:', error);
+            document.getElementById('infoAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading info alerts</p>';
+        });
+}
+
+function closeInfoAlertsModal() {
+    document.getElementById('infoAlertsModal').style.display = 'none';
+}
+
+// WARNING Alerts Modal
+function showWarningAlertsModal() {
+    console.log('Showing warning alerts modal...');
+    document.getElementById('warningAlertsModal').style.display = 'flex';
+
+    // Fetch all unacknowledged + last 5 acknowledged warning alerts
+    Promise.all([
+        fetch('/api/alerts/history?unresolved=true&severity=warning&limit=100').then(r => r.json()),
+        fetch('/api/alerts/history?acknowledged=true&severity=warning&limit=5').then(r => r.json())
+    ])
+        .then(([unresolvedData, ackData]) => {
+            if (unresolvedData.status === 'success' && ackData.status === 'success') {
+                // Filter unresolved to only get unacknowledged (acknowledged_at is null)
+                const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
+                // Combine: unacknowledged first, then acknowledged (max 5)
+                const combinedAlerts = [...unackAlerts, ...ackData.data];
+                renderAlertsInTable(combinedAlerts, 'warningAlertsTable', 'No warning alerts.');
+            } else {
+                document.getElementById('warningAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading warning alerts</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading warning alerts:', error);
+            document.getElementById('warningAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading warning alerts</p>';
+        });
+}
+
+function closeWarningAlertsModal() {
+    document.getElementById('warningAlertsModal').style.display = 'none';
+}
+
+// Alert History Full Modal (Last 50 Alerts)
+function showAlertHistoryFullModal() {
+    console.log('Showing full alert history modal...');
+    document.getElementById('alertHistoryFullModal').style.display = 'flex';
+
+    // Fetch last 50 alerts (both active AND resolved, all severities, sorted newest first)
+    fetch('/api/alerts/history?limit=50')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                renderAlertHistoryFull(data.data);
+            } else {
+                document.getElementById('alertHistoryFullTable').innerHTML = '<p style="color: #dc3545;">Error loading alert history</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading alert history:', error);
+            document.getElementById('alertHistoryFullTable').innerHTML = '<p style="color: #dc3545;">Error loading alert history</p>';
+        });
+}
+
+function closeAlertHistoryFullModal() {
+    document.getElementById('alertHistoryFullModal').style.display = 'none';
+}
+
+// Acknowledge All functions for each severity
+function acknowledgeAllInfoAlerts() {
+    fetch('/api/alerts/history?unresolved=true&severity=info')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.length > 0) {
+                const alertIds = data.data.map(alert => alert.id);
+                // Acknowledge each alert
+                Promise.all(alertIds.map(id =>
+                    fetch(`/api/alerts/history/${id}/acknowledge`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    })
+                )).then(() => {
+                    loadAlertStats();
+                    refreshOpenModals();
+                });
+            }
+        })
+        .catch(error => console.error('Error acknowledging info alerts:', error));
+}
+
+function acknowledgeAllWarningAlerts() {
+    fetch('/api/alerts/history?unresolved=true&severity=warning')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.length > 0) {
+                const alertIds = data.data.map(alert => alert.id);
+                // Acknowledge each alert
+                Promise.all(alertIds.map(id =>
+                    fetch(`/api/alerts/history/${id}/acknowledge`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    })
+                )).then(() => {
+                    loadAlertStats();
+                    refreshOpenModals();
+                });
+            }
+        })
+        .catch(error => console.error('Error acknowledging warning alerts:', error));
+}
+
+function acknowledgeAllCriticalAlerts() {
+    fetch('/api/alerts/history?unresolved=true&severity=critical')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.length > 0) {
+                const alertIds = data.data.map(alert => alert.id);
+                // Acknowledge each alert
+                Promise.all(alertIds.map(id =>
+                    fetch(`/api/alerts/history/${id}/acknowledge`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    })
+                )).then(() => {
+                    loadAlertStats();
+                    refreshOpenModals();
+                });
+            }
+        })
+        .catch(error => console.error('Error acknowledging critical alerts:', error));
+}
+
+function renderAlertHistoryFull(alerts) {
+    const container = document.getElementById('alertHistoryFullTable');
+    if (!container) return;
+
+    if (alerts.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px; font-family: var(--font-secondary);">No alert history found.</p>';
+        return;
+    }
+
+    const severityColors = {
+        'critical': '#dc3545',
+        'warning': '#ffc107',
+        'info': '#17a2b8'
+    };
+
+    let html = `
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    alerts.forEach((alert, index) => {
+        const severityColor = severityColors[alert.severity] || '#6c757d';
+        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const time = new Date(alert.triggered_at).toLocaleString();
+        const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
+        const deviceName = getDeviceNameById(alert.device_id);
+
+        html += `
+            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 12px; color: #333; font-size: 0.9em;">${time}</td>
+                <td style="padding: 12px; color: #666; font-size: 0.9em;">${escapeHtml(deviceName)}</td>
+                <td style="padding: 12px; color: #666; font-size: 0.9em;">${escapeHtml(alert.message)}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
+                </td>
+                <td style="padding: 12px; text-align: center; color: #666; font-size: 0.85em;">${statusText}</td>
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table>
+             <div style="color: #666; text-align: right; margin-top: 10px; font-size: 0.85em; font-family: var(--font-secondary);">
+                 Showing ${alerts.length} most recent alert${alerts.length !== 1 ? 's' : ''}
+             </div>
+         </div>`;
+    container.innerHTML = html;
+}
+
+// Resolve all active alerts
+function resolveAllActiveAlerts() {
+    if (!confirm('Are you sure you want to resolve all active alerts?')) {
+        return;
+    }
+
+    // Fetch all unresolved alerts
+    fetch('/api/alerts/history?unresolved=true')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.length > 0) {
+                const resolvePromises = data.data.map(alert => {
+                    return fetch(`/api/alerts/history/${alert.id}/resolve`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({
+                            resolved_reason: 'Bulk resolved from Active Alerts modal'
+                        })
+                    });
+                });
+
+                Promise.all(resolvePromises)
+                    .then(() => {
+                        showSuccess(`Resolved ${data.data.length} alert(s)`);
+                        loadAlertHistory();
+                        loadAlertStats();
+                        // Refresh the active alerts modal
+                        fetch('/api/alerts/history?unresolved=true')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    renderAlertsInTable(data.data, 'activeAlertsTable', 'No active alerts at this time.');
+                                }
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Error resolving all alerts:', error);
+                        showError('Error resolving some alerts');
+                    });
+            } else {
+                showSuccess('No active alerts to resolve');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching active alerts:', error);
+            showError('Error fetching active alerts');
+        });
+}
+
+// Resolve all critical alerts
+function resolveAllCriticalAlerts() {
+    if (!confirm('Are you sure you want to resolve all critical alerts?')) {
+        return;
+    }
+
+    // Fetch all unresolved critical alerts
+    fetch('/api/alerts/history?unresolved=true&severity=critical')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.length > 0) {
+                const resolvePromises = data.data.map(alert => {
+                    return fetch(`/api/alerts/history/${alert.id}/resolve`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({
+                            resolved_reason: 'Bulk resolved from Critical Alerts modal'
+                        })
+                    });
+                });
+
+                Promise.all(resolvePromises)
+                    .then(() => {
+                        showSuccess(`Resolved ${data.data.length} critical alert(s)`);
+                        loadAlertHistory();
+                        loadAlertStats();
+                        // Refresh the critical alerts modal
+                        fetch('/api/alerts/history?unresolved=true&severity=critical')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    renderAlertsInTable(data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
+                                }
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Error resolving all critical alerts:', error);
+                        showError('Error resolving some alerts');
+                    });
+            } else {
+                showSuccess('No critical alerts to resolve');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching critical alerts:', error);
+            showError('Error fetching critical alerts');
+        });
+}
+
+/**
+ * Format alert message to display on multiple lines
+ * Example: "[COOLDOWN] Inbound Throughput on PA1410: 710.39 Mbps > 350.00 Mbps"
+ * Becomes:
+ * Line 1: [COOLDOWN] Inbound
+ * Line 2: Throughput on PA1410:
+ * Line 3: 710.39 Mbps > 350.00 Mbps
+ */
+function formatAlertMessage(message) {
+    // Pattern: [TAG] Word Throughput on DEVICE: VALUE > VALUE
+    const match = message.match(/^(\[.*?\]\s+\w+)\s+(Throughput on [^:]+:)\s+(.+)$/);
+
+    if (match) {
+        const line1 = escapeHtml(match[1]);  // [COOLDOWN] Inbound
+        const line2 = escapeHtml(match[2]);  // Throughput on PA1410:
+        const line3 = escapeHtml(match[3]);  // 710.39 Mbps > 350.00 Mbps
+
+        return `${line1}<br>${line2}<br>${line3}`;
+    }
+
+    // If pattern doesn't match, return escaped original message
+    return escapeHtml(message);
+}
+
+function renderAlertsInTable(alerts, containerId, emptyMessage) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (alerts.length === 0) {
+        container.innerHTML = `<p style="text-align: center; color: #666; padding: 40px; font-family: var(--font-secondary);">${emptyMessage}</p>`;
+        return;
+    }
+
+    let html = `
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    alerts.forEach((alert, index) => {
+        const severityColors = {
+            'critical': '#dc3545',
+            'warning': '#ffc107',
+            'info': '#17a2b8'
+        };
+        const severityColor = severityColors[alert.severity] || '#6c757d';
+        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const time = new Date(alert.triggered_at).toLocaleString();
+        const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
+
+        html += `
+            <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+                <td style="padding: 12px; color: #333;">${time}</td>
+                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #666; line-height: 1.5;">${formatAlertMessage(alert.message)}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
+                </td>
+                <td style="padding: 12px; text-align: center; color: #666;">${statusText}</td>
+                <td style="padding: 12px; text-align: center;">
+                    ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
                 </td>
             </tr>
         `;
@@ -1161,6 +1788,7 @@ window.loadAlertConfigs = loadAlertConfigs;
 window.loadAlertHistory = loadAlertHistory;
 window.showCreateAlertModal = showCreateAlertModal;
 window.showCreateApplicationAlertModal = showCreateApplicationAlertModal;
+window.editAlertConfig = editAlertConfig;
 window.saveAlertConfig = saveAlertConfig;
 window.deleteAlertConfig = deleteAlertConfig;
 window.closeAlertConfigModal = closeAlertConfigModal;
@@ -1187,3 +1815,16 @@ window.showQuickStartModal = showQuickStartModal;
 window.closeQuickStartBrowserModal = closeQuickStartBrowserModal;
 window.closeAlertHistoryModal = closeAlertHistoryModal;
 window.filterAlertHistory = filterAlertHistory;
+window.showInfoAlertsModal = showInfoAlertsModal;
+window.closeInfoAlertsModal = closeInfoAlertsModal;
+window.showWarningAlertsModal = showWarningAlertsModal;
+window.closeWarningAlertsModal = closeWarningAlertsModal;
+window.showCriticalAlertsModal = showCriticalAlertsModal;
+window.closeCriticalAlertsModal = closeCriticalAlertsModal;
+window.showAlertHistoryFullModal = showAlertHistoryFullModal;
+window.closeAlertHistoryFullModal = closeAlertHistoryFullModal;
+window.acknowledgeAllInfoAlerts = acknowledgeAllInfoAlerts;
+window.acknowledgeAllWarningAlerts = acknowledgeAllWarningAlerts;
+window.acknowledgeAllCriticalAlerts = acknowledgeAllCriticalAlerts;
+window.resolveAllActiveAlerts = resolveAllActiveAlerts;
+window.resolveAllCriticalAlerts = resolveAllCriticalAlerts;

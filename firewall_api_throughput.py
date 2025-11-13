@@ -15,6 +15,102 @@ from device_manager import device_manager
 previous_stats = {}
 
 
+def _calculate_top_category(category_data, exclude_categories=None):
+    """
+    Calculate top category by bytes from category data.
+
+    Args:
+        category_data: Dictionary with category names as keys and {'bytes': X, 'sessions': Y, 'bytes_sent': Z, 'bytes_received': W} as values
+        exclude_categories: List of category names to exclude from consideration (optional)
+
+    Returns:
+        Dictionary with {'category': str, 'bytes': int, 'sessions': int, 'bytes_sent': int, 'bytes_received': int} or None if no data
+    """
+    try:
+        if not category_data or not isinstance(category_data, dict):
+            return None
+
+        # Filter out excluded categories if specified
+        if exclude_categories:
+            filtered_data = {k: v for k, v in category_data.items() if k not in exclude_categories}
+        else:
+            filtered_data = category_data
+
+        if not filtered_data:
+            return None
+
+        # Find category with maximum bytes
+        top_category_name = max(filtered_data.items(), key=lambda x: x[1].get('bytes', 0))[0]
+        top_category_stats = filtered_data[top_category_name]
+
+        return {
+            'category': top_category_name,
+            'bytes': top_category_stats.get('bytes', 0),
+            'sessions': top_category_stats.get('sessions', 0),
+            'bytes_sent': top_category_stats.get('bytes_sent', 0),
+            'bytes_received': top_category_stats.get('bytes_received', 0)
+        }
+    except (ValueError, KeyError, AttributeError) as e:
+        debug(f"Error calculating top category: {str(e)}")
+        return None
+
+
+def _calculate_top_categories_split(all_categories):
+    """
+    Calculate top categories split by type:
+    - Local LAN: Only "private-ip-addresses" category
+    - Internet: Top category by volume from all OTHER categories (excluding private-ip-addresses)
+
+    Args:
+        all_categories: Dictionary with all category stats (not split by traffic direction)
+
+    Returns:
+        Dictionary with 'top_lan' and 'top_internet' keys, each containing category details
+    """
+    try:
+        if not all_categories or not isinstance(all_categories, dict):
+            debug("No category data available for split calculation")
+            return {
+                'top_lan': {},
+                'top_internet': {}
+            }
+
+        debug(f"Calculating category split from {len(all_categories)} categories: {list(all_categories.keys())}")
+
+        # Local LAN: Get private-ip-addresses category if it exists
+        top_lan = None
+        if 'private-ip-addresses' in all_categories:
+            private_ip_stats = all_categories['private-ip-addresses']
+            top_lan = {
+                'category': 'private-ip-addresses',
+                'bytes': private_ip_stats.get('bytes', 0),
+                'sessions': private_ip_stats.get('sessions', 0),
+                'bytes_sent': private_ip_stats.get('bytes_sent', 0),
+                'bytes_received': private_ip_stats.get('bytes_received', 0)
+            }
+            debug(f"Local LAN category found: {private_ip_stats.get('bytes', 0)} bytes")
+        else:
+            debug("No private-ip-addresses category found for Local LAN")
+
+        # Internet: Get top category excluding private-ip-addresses
+        top_internet = _calculate_top_category(all_categories, exclude_categories=['private-ip-addresses'])
+        if top_internet:
+            debug(f"Internet top category: {top_internet.get('category')} ({top_internet.get('bytes', 0)} bytes)")
+        else:
+            debug("No internet category found (all categories may be private-ip-addresses or empty)")
+
+        return {
+            'top_lan': top_lan or {},
+            'top_internet': top_internet or {}
+        }
+    except Exception as e:
+        exception(f"Error calculating split top categories: {str(e)}")
+        return {
+            'top_lan': {},
+            'top_internet': {}
+        }
+
+
 def get_firewall_config(device_id=None):
     """Import get_firewall_config from firewall_api to avoid circular import"""
     from firewall_api import get_firewall_config as _get_firewall_config
@@ -300,11 +396,11 @@ def get_throughput_data(device_id=None):
             from firewall_api_applications import get_top_applications, get_application_statistics
             from firewall_api_health import get_license_info, get_software_updates
 
-            # Get session count data
-            session_data = get_session_count()
+            # Get session count data (pass device_id for proper context)
+            session_data = get_session_count(device_id)
 
-            # Get system resource data
-            resource_data = get_system_resources()
+            # Get system resource data (pass device_id for proper context)
+            resource_data = get_system_resources(device_id)
 
             # Use top 10 for all modal displays
             max_logs = 10
@@ -319,8 +415,8 @@ def get_throughput_data(device_id=None):
             # Get system logs (limit to max_logs) (from firewall_api_logs module)
             system_logs = get_system_logs(firewall_config, max_logs)
 
-            # Get interface statistics
-            interface_stats_data = get_interface_stats()
+            # Get interface statistics (pass device_id for proper context)
+            interface_stats_data = get_interface_stats(device_id)
             interface_stats_list = interface_stats_data.get('interfaces', [])
             interface_errors = interface_stats_data.get('total_errors', 0)
             interface_drops = interface_stats_data.get('total_drops', 0)
@@ -331,6 +427,8 @@ def get_throughput_data(device_id=None):
             # Get full application statistics including category aggregation for alerting
             app_stats_full = get_application_statistics(firewall_config)
             category_data = app_stats_full.get('categories', {})
+            category_data_lan = app_stats_full.get('categories_lan', {})
+            category_data_internet = app_stats_full.get('categories_internet', {})
 
             # Get license information (from firewall_api_health module)
             license_info = get_license_info(firewall_config)
@@ -422,11 +520,23 @@ def get_throughput_data(device_id=None):
                 'hostname': hostname,
                 'uptime_seconds': uptime_seconds,
                 'categories': category_data,  # Category-level traffic for alerting
+                'top_category': _calculate_top_category(category_data),  # Cyber Health: Top category by bytes (overall)
+                # Split categories: private-ip-addresses for LAN, top of others for Internet
+                'top_category_lan': _calculate_top_categories_split(category_data).get('top_lan', {}),
+                'top_category_internet': _calculate_top_categories_split(category_data).get('top_internet', {}),
                 'status': 'success'
             }
         else:
-            return {'status': 'error', 'message': f'HTTP {response.status_code}'}
+            return {
+                'status': 'error',
+                'message': f'HTTP {response.status_code}',
+                'timestamp': datetime.utcnow().isoformat() + 'Z'
+            }
 
     except Exception as e:
         exception(f"Throughput data error: {str(e)}")
-        return {'status': 'error', 'message': f'Error: {str(e)}'}
+        return {
+            'status': 'error',
+            'message': f'Error: {str(e)}',
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }

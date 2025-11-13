@@ -482,6 +482,8 @@ class AlertManager:
 
             # Check if this is an application metric (format: "app_<application_name>")
             top_source_info = None  # Store source info for application alerts
+            per_ip_results = None  # Store per-IP bandwidth results
+
             if metric_type.startswith('app_'):
                 # Extract application name (e.g., "app_ssl" -> "ssl")
                 app_name = metric_type[len('app_'):]
@@ -496,6 +498,29 @@ class AlertManager:
                 print(f"[ALERT MANAGER]   ► 5-min total for {app_name}: {actual_value:.2f} MB")
                 if top_source_info:
                     print(f"[ALERT MANAGER]   ► Top source: {top_source_info['ip']} ({top_source_info.get('bytes', 0)} bytes)")
+                sys.stdout.flush()
+            elif metric_type == 'per_ip_bandwidth_5min':
+                # Per-IP bandwidth monitoring (1GB+ downloads/uploads in 5 minutes)
+                print(f"[ALERT MANAGER]   ► Per-IP bandwidth metric detected")
+                print(f"[ALERT MANAGER]   ► Querying 5-minute bandwidth per IP from database...")
+                sys.stdout.flush()
+
+                # Import ThroughputStorage to query traffic logs
+                from throughput_storage import ThroughputStorage
+                storage = ThroughputStorage(self.throughput_db_path)
+
+                # Query for IPs exceeding threshold (threshold_value is in MB, convert to bytes)
+                threshold_bytes = int(threshold_value * 1024 * 1024)
+                per_ip_results = storage.get_per_ip_bandwidth_5min(device_id, threshold_bytes)
+
+                # For threshold comparison, use count of IPs exceeding threshold
+                actual_value = len(per_ip_results)
+
+                print(f"[ALERT MANAGER]   ► Found {actual_value} IP(s) exceeding {threshold_value} MB in 5 minutes")
+                if per_ip_results:
+                    for result in per_ip_results:
+                        bytes_mb = result['total_bytes'] / (1024 * 1024)
+                        print(f"[ALERT MANAGER]     - {result['ip']} ({result['hostname']}): {bytes_mb:.2f} MB {result['direction']}")
                 sys.stdout.flush()
             else:
                 # Standard metric - use provided value
@@ -526,7 +551,8 @@ class AlertManager:
                 triggered_alerts.append({
                     'config': config,
                     'actual_value': actual_value,
-                    'top_source': top_source_info  # Include source info for category alerts
+                    'top_source': top_source_info,  # Include source info for category alerts
+                    'per_ip_results': per_ip_results  # Include per-IP bandwidth results
                 })
             else:
                 print(f"[ALERT MANAGER]   ○ NOT TRIGGERED: {actual_value} NOT {operator} {threshold_value}")
@@ -678,7 +704,7 @@ class AlertManager:
             return False
 
     def get_alert_history(self, device_id: Optional[str] = None, limit: int = 100,
-                         unresolved_only: bool = False) -> List[Dict]:
+                         unresolved_only: bool = False, severity: Optional[str] = None) -> List[Dict]:
         """
         Get alert history, optionally filtered.
 
@@ -686,11 +712,12 @@ class AlertManager:
             device_id: Filter by device ID
             limit: Maximum number of records
             unresolved_only: Only return unresolved alerts
+            severity: Filter by severity ('critical', 'warning', or 'info')
 
         Returns:
             List of alert history dictionaries
         """
-        debug(f"Getting alert history (device: {device_id}, limit: {limit}, unresolved: {unresolved_only})")
+        debug(f"Getting alert history (device: {device_id}, limit: {limit}, unresolved: {unresolved_only}, severity: {severity})")
 
         try:
             conn = sqlite3.connect(self.db_path)
@@ -706,6 +733,10 @@ class AlertManager:
 
             if unresolved_only:
                 query += ' AND resolved_at IS NULL'
+
+            if severity:
+                query += ' AND severity = ?'
+                params.append(severity)
 
             query += ' ORDER BY triggered_at DESC LIMIT ?'
             params.append(limit)
@@ -876,6 +907,44 @@ class AlertManager:
             exception(f"Failed to clear expired cooldowns: {e}")
             return 0
 
+    def cleanup_old_alert_history(self, retention_days: int) -> int:
+        """
+        Delete resolved alert history older than retention period.
+        Only deletes resolved alerts to preserve active/unresolved alerts.
+
+        Args:
+            retention_days: Number of days to retain resolved alerts
+
+        Returns:
+            int: Number of alert records deleted
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cutoff_date = (datetime.utcnow() - timedelta(days=retention_days)).isoformat()
+
+            # Only delete resolved alerts older than retention period
+            cursor.execute('''
+                DELETE FROM alert_history
+                WHERE resolved_at IS NOT NULL AND resolved_at < ?
+            ''', (cutoff_date,))
+
+            deleted_count = cursor.rowcount
+            conn.commit()
+            conn.close()
+
+            if deleted_count > 0:
+                debug(f"Cleaned up {deleted_count} old resolved alerts (retention: {retention_days} days)")
+            else:
+                debug("No old alert history to clean up")
+
+            return deleted_count
+
+        except Exception as e:
+            exception(f"Failed to cleanup old alert history: {e}")
+            return 0
+
 
 # Global alert manager instance
 alert_manager = AlertManager()
@@ -899,13 +968,15 @@ def get_metric_display_name(metric_type: str) -> str:
         'memory': 'Memory Usage',
         'sessions': 'Active Sessions',
         'threats_critical': 'Critical Threats',
-        'interface_errors': 'Interface Errors'
+        'interface_errors': 'Interface Errors',
+        'per_ip_bandwidth_5min': 'Per-Device Bandwidth (5-min)'
     }
     return names.get(metric_type, metric_type.replace('_', ' ').title())
 
 
 def format_alert_message(metric_type: str, actual_value: float, threshold_value: float,
-                        operator: str, device_name: str = None, top_source: dict = None) -> str:
+                        operator: str, device_name: str = None, top_source: dict = None,
+                        per_ip_results: list = None) -> str:
     """
     Format alert message for notifications.
 
@@ -917,6 +988,8 @@ def format_alert_message(metric_type: str, actual_value: float, threshold_value:
         device_name: Optional device name
         top_source: Optional dict with top source info for application alerts
                     {'ip': str, 'hostname': str, 'custom_name': str, 'bytes': int}
+        per_ip_results: Optional list of per-IP bandwidth results
+                       [{'ip': str, 'hostname': str, 'total_bytes': int, 'direction': str}, ...]
 
     Returns:
         str: Formatted alert message
@@ -925,7 +998,27 @@ def format_alert_message(metric_type: str, actual_value: float, threshold_value:
     device_str = f" on {device_name}" if device_name else ""
 
     # Format values based on metric type
-    if metric_type.startswith('app_'):
+    if metric_type == 'per_ip_bandwidth_5min':
+        # Per-IP bandwidth monitoring - list all IPs that exceeded threshold
+        threshold_str = f"{threshold_value:.0f} MB"
+
+        if per_ip_results and len(per_ip_results) > 0:
+            # Format detailed message with all offending IPs
+            details = []
+            for result in per_ip_results:
+                ip = result.get('ip', 'Unknown')
+                hostname = result.get('hostname', ip)
+                bytes_mb = result.get('total_bytes', 0) / (1024 * 1024)
+                direction = result.get('direction', 'transfer')
+
+                # Format: "192.168.1.100 (Johns-Laptop) downloaded 2,500 MB"
+                details.append(f"{ip} ({hostname}) {direction}ed {bytes_mb:.0f} MB")
+
+            ip_list_str = "\n".join(f"  • {detail}" for detail in details)
+            return f"{metric_name}{device_str}: {len(per_ip_results)} device(s) exceeded {threshold_str} in 5 minutes\n{ip_list_str}"
+        else:
+            return f"{metric_name}{device_str}: Alert triggered but no device details available"
+    elif metric_type.startswith('app_'):
         # Application metrics are in MB (5-minute totals)
         actual_str = f"{actual_value:.2f} MB"
         threshold_str = f"{threshold_value:.2f} MB"

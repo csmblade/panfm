@@ -343,21 +343,28 @@ async function saveDeviceMetadata(mac, name, location, comment, tags) {
         const data = await response.json();
 
         if (data.status === 'success') {
+            console.log('Metadata saved successfully, updating cache and reloading devices...');
+
             // Update cache
             const normalizedMac = mac.toLowerCase();
             const metadataCache = window.ConnectedDevices.metadataCache;
             if (name || location || comment || (tags && tags.length > 0)) {
                 metadataCache[normalizedMac] = data.metadata;
+                console.log('Updated metadata cache for', normalizedMac, ':', data.metadata);
             } else {
                 delete metadataCache[normalizedMac];
+                console.log('Removed metadata cache for', normalizedMac);
             }
 
-            // Reload tags and locations for autocomplete (using functions from core module)
-            // These are internal functions, so we need to call them via the module
-            // For now, we'll reload the entire device list which includes this data
-
             // Reload devices to refresh display
-            await window.loadConnectedDevices();
+            console.log('Calling window.loadConnectedDevices()...');
+            if (typeof window.loadConnectedDevices === 'function') {
+                await window.loadConnectedDevices();
+                console.log('Device list reloaded successfully');
+            } else {
+                console.error('window.loadConnectedDevices is not a function!', typeof window.loadConnectedDevices);
+            }
+
             return true;
         } else {
             alert('Failed to save metadata: ' + (data.message || 'Unknown error'));

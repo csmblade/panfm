@@ -55,6 +55,20 @@ async function loadApplications() {
             // Populate filter dropdowns
             populateApplicationFilters();
 
+            // Restore traffic filter preference from settings
+            try {
+                const settingsResponse = await fetch('/api/settings');
+                const settingsData = await settingsResponse.json();
+                if (settingsData.status === 'success' && settingsData.settings.applications_traffic_filter) {
+                    const trafficFilter = document.getElementById('applicationsTrafficFilter');
+                    if (trafficFilter) {
+                        trafficFilter.value = settingsData.settings.applications_traffic_filter;
+                    }
+                }
+            } catch (e) {
+                console.log('Could not restore traffic filter preference:', e);
+            }
+
             // Render Traffic by Category chart
             renderCategoryChart();
 
@@ -291,6 +305,7 @@ function renderApplicationsTable() {
     const vlanFilter = document.getElementById('applicationsVlanFilter').value;
     const zoneFilter = document.getElementById('applicationsZoneFilter').value;
     const categoryFilter = document.getElementById('applicationsCategoryFilter').value;
+    const trafficFilter = document.getElementById('applicationsTrafficFilter').value;
 
     // Filter applications
     let filtered = allApplications.filter(app => {
@@ -311,6 +326,11 @@ function renderApplicationsTable() {
 
         // Category filter
         if (categoryFilter && app.category !== categoryFilter) {
+            return false;
+        }
+
+        // Traffic Type filter (NEW)
+        if (trafficFilter && app.traffic_direction !== trafficFilter) {
             return false;
         }
 
@@ -395,6 +415,24 @@ function renderApplicationsTable() {
         const vlans = (app.vlans || []).join(', ') || 'N/A';
         const category = app.category || 'unknown';
 
+        // Traffic direction badge
+        const trafficDirection = app.traffic_direction || 'unknown';
+        const trafficIcons = {
+            'internet': '🌐',
+            'local': '🏠',
+            'mixed': '🔀',
+            'unknown': '❓'
+        };
+        const trafficColors = {
+            'internet': '#2ecc71',  // Green for internet
+            'local': '#3498db',     // Blue for local
+            'mixed': '#f39c12',     // Orange for mixed
+            'unknown': '#95a5a6'    // Gray for unknown
+        };
+        const trafficIcon = trafficIcons[trafficDirection] || '❓';
+        const trafficColor = trafficColors[trafficDirection] || '#95a5a6';
+        const trafficLabel = trafficDirection.charAt(0).toUpperCase() + trafficDirection.slice(1);
+
         // Category badge colors
         const categoryColors = {
             'networking': '#3498db',
@@ -408,7 +446,14 @@ function renderApplicationsTable() {
 
         html += `
             <tr style="border-bottom: 1px solid #eee; transition: background 0.2s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
-                <td onclick="showAppDetails(${index})" style="padding: 12px; color: #FA582D; font-weight: 600; cursor: pointer; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#C64620'" onmouseout="this.style.color='#FA582D'">${app.name}</td>
+                <td onclick="showAppDetails(${index})" style="padding: 12px; cursor: pointer;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="background: ${trafficColor}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Traffic Type: ${trafficLabel}">
+                            ${trafficIcon}
+                        </span>
+                        <span style="color: #FA582D; font-weight: 600; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#C64620'" onmouseout="this.style.color='#FA582D'">${app.name}</span>
+                    </div>
+                </td>
                 <td onclick="showAppDestinations(${index})" style="padding: 12px; cursor: pointer;">
                     <span style="background: ${categoryColor}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; display: inline-block; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                         ${category}
@@ -549,6 +594,7 @@ function setupApplicationsEventListeners() {
     const vlanFilter = document.getElementById('applicationsVlanFilter');
     const zoneFilter = document.getElementById('applicationsZoneFilter');
     const categoryFilter = document.getElementById('applicationsCategoryFilter');
+    const trafficFilter = document.getElementById('applicationsTrafficFilter');
     const refreshBtn = document.getElementById('refreshApplicationsBtn');
 
     if (searchInput) {
@@ -578,6 +624,30 @@ function setupApplicationsEventListeners() {
     if (categoryFilter) {
         categoryFilter.addEventListener('change', () => {
             renderApplicationsTable();
+        });
+    }
+
+    if (trafficFilter) {
+        trafficFilter.addEventListener('change', async () => {
+            renderApplicationsTable();
+            // Save filter preference to settings
+            try {
+                const currentSettings = await fetch('/api/settings').then(r => r.json());
+                if (currentSettings.status === 'success') {
+                    const settings = currentSettings.settings;
+                    settings.applications_traffic_filter = trafficFilter.value;
+                    await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to save traffic filter preference:', e);
+            }
         });
     }
 

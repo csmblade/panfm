@@ -85,6 +85,13 @@ LOGGING_GUIDE.md
 TYPOGRAPHY_GUIDE.md
 *_SUMMARY.md
 
+# Markdown files (blanket protection)
+# Block all .md files by default for security
+*.md
+# Exception: Allow public documentation
+!README.md
+!CONTRIBUTING.md
+
 # Claude Code metadata
 # BOTH .claude/ and .claude-templates/ are private (contain project knowledge)
 .claude/

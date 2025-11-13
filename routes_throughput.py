@@ -54,8 +54,10 @@ def register_throughput_routes(app, csrf, limiter):
             collector = get_collector()
             if collector is None:
                 warning("Throughput collector not initialized")
+                from datetime import datetime
                 return jsonify({
                     'error': 'Throughput collection not enabled',
+                    'timestamp': datetime.utcnow().isoformat() + 'Z',  # Add current timestamp
                     'inbound_mbps': 0,
                     'outbound_mbps': 0,
                     'total_mbps': 0,
@@ -150,8 +152,10 @@ def register_throughput_routes(app, csrf, limiter):
             if latest_sample is None:
                 debug("No recent throughput data in database, returning zeros")
                 # Return zero values if no recent data (collector may be starting up)
+                from datetime import datetime
                 return jsonify({
                     'status': 'success',
+                    'timestamp': datetime.utcnow().isoformat() + 'Z',  # Add current timestamp
                     'inbound_mbps': 0,
                     'outbound_mbps': 0,
                     'total_mbps': 0,
@@ -211,8 +215,10 @@ def register_throughput_routes(app, csrf, limiter):
 
         except Exception as e:
             exception(f"Failed to retrieve throughput from database: {str(e)}")
+            from datetime import datetime
             return jsonify({
                 'error': 'Failed to retrieve throughput data',
+                'timestamp': datetime.utcnow().isoformat() + 'Z',  # Add current timestamp
                 'inbound_mbps': 0,
                 'outbound_mbps': 0,
                 'total_mbps': 0,

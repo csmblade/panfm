@@ -20,8 +20,11 @@ from throughput_storage import ThroughputStorage
 from alert_manager import alert_manager, format_alert_message
 from notification_manager import notification_manager
 
-# Cooldown period constant (now managed in database via alert_manager)
-_COOLDOWN_PERIOD_SECONDS = 900  # 15 minutes (900 seconds)
+# Severity-based cooldown period constants (in seconds)
+# Each severity level can have its own cooldown duration to provide granular control
+_COOLDOWN_INFO_SECONDS = 300      # 5 minutes for INFO alerts
+_COOLDOWN_WARNING_SECONDS = 300   # 5 minutes for WARNING alerts
+_COOLDOWN_CRITICAL_SECONDS = 300  # 5 minutes for CRITICAL alerts
 
 
 class ThroughputCollector:
@@ -37,6 +40,8 @@ class ThroughputCollector:
         """
         self.storage = storage
         self.retention_days = retention_days
+        self.collection_count = 0
+        self.last_cleanup = None
         debug("ThroughputCollector initialized with %d-day retention", retention_days)
 
     def collect_all_devices(self):
@@ -71,6 +76,14 @@ class ThroughputCollector:
                     # Get throughput data
                     throughput_data = get_throughput_data(device_id)
 
+                    # Compute top bandwidth clients (internal and internet) and add to data
+                    top_clients = self._compute_top_bandwidth_client(device_id)
+                    if top_clients:
+                        # Add all three client types to throughput data
+                        throughput_data['top_bandwidth_client'] = top_clients.get('top_bandwidth', {})
+                        throughput_data['top_internal_client'] = top_clients.get('top_internal', {})
+                        throughput_data['top_internet_client'] = top_clients.get('top_internet', {})
+
                     if throughput_data and throughput_data.get('status') == 'success':
                         # Store throughput sample in database
                         if self.storage.insert_sample(device_id, throughput_data):
@@ -93,6 +106,9 @@ class ThroughputCollector:
 
             info("Collection cycle complete: %d/%d devices successful",
                  success_count, len(enabled_devices))
+
+            # Increment collection count
+            self.collection_count += 1
 
         except Exception as e:
             exception("Error in collection cycle: %s", str(e))
@@ -159,8 +175,10 @@ class ThroughputCollector:
             if 'sessions' in throughput_data:
                 sessions_data = throughput_data['sessions']
                 if isinstance(sessions_data, dict):
-                    # Extract total from nested dict (e.g., {'total': X, 'tcp': Y, ...})
-                    if 'total' in sessions_data:
+                    # Extract active sessions from nested dict (e.g., {'active': X, 'tcp': Y, ...})
+                    if 'active' in sessions_data:
+                        metrics['sessions'] = float(sessions_data['active'])
+                    elif 'total' in sessions_data:
                         metrics['sessions'] = float(sessions_data['total'])
                 else:
                     metrics['sessions'] = float(sessions_data)
@@ -204,6 +222,7 @@ class ThroughputCollector:
                 config = alert_info['config']
                 actual_value = alert_info['actual_value']
                 top_source = alert_info.get('top_source')  # Get source info for category alerts
+                per_ip_results = alert_info.get('per_ip_results')  # Get per-IP bandwidth results
                 alert_config_id = config['id']
 
                 print(f"[ALERT CHECK] ⚠ ALERT TRIGGERED!")
@@ -214,16 +233,30 @@ class ThroughputCollector:
                 print(f"[ALERT CHECK]   Severity: {config['severity']}")
                 if top_source:
                     print(f"[ALERT CHECK]   Top Source: {top_source['ip']} ({top_source.get('hostname', 'N/A')})")
+                if per_ip_results:
+                    print(f"[ALERT CHECK]   Per-IP Results: {len(per_ip_results)} device(s)")
+                    for result in per_ip_results:
+                        bytes_mb = result['total_bytes'] / (1024 * 1024)
+                        print(f"[ALERT CHECK]     - {result['ip']} ({result['hostname']}): {bytes_mb:.2f} MB {result['direction']}")
                 sys.stdout.flush()
 
-                # Check cooldown period to prevent alert spam (database-backed, persistent)
-                in_cooldown = alert_manager.check_cooldown(device_id, alert_config_id, _COOLDOWN_PERIOD_SECONDS)
+                # Determine cooldown period based on severity level
+                severity = config['severity']
+                if severity == 'info':
+                    cooldown_seconds = _COOLDOWN_INFO_SECONDS
+                elif severity == 'warning':
+                    cooldown_seconds = _COOLDOWN_WARNING_SECONDS
+                else:  # critical
+                    cooldown_seconds = _COOLDOWN_CRITICAL_SECONDS
 
-                print(f"[ALERT CHECK]   In cooldown: {in_cooldown}")
+                # Check cooldown period to prevent alert spam (database-backed, persistent)
+                in_cooldown = alert_manager.check_cooldown(device_id, alert_config_id, cooldown_seconds)
+
+                print(f"[ALERT CHECK]   Cooldown: {cooldown_seconds}s ({severity}), In cooldown: {in_cooldown}")
                 sys.stdout.flush()
 
                 if in_cooldown:
-                    debug(f"Alert {alert_config_id} still in cooldown period, skipping notification (will still record)")
+                    debug(f"Alert {alert_config_id} ({severity}) still in cooldown period ({cooldown_seconds}s), skipping notification (will still record)")
                     # Still record in history for audit trail, but don't send notification
                     alert_manager.record_alert(
                         config_id=alert_config_id,
@@ -232,7 +265,7 @@ class ThroughputCollector:
                         threshold_value=config['threshold_value'],
                         actual_value=actual_value,
                         severity=config['severity'],
-                        message=f"[COOLDOWN] {format_alert_message(config['metric_type'], actual_value, config['threshold_value'], config['threshold_operator'], device_name, top_source)}"
+                        message=f"[COOLDOWN] {format_alert_message(config['metric_type'], actual_value, config['threshold_value'], config['threshold_operator'], device_name, top_source, per_ip_results)}"
                     )
                     continue  # Skip notification
 
@@ -243,7 +276,8 @@ class ThroughputCollector:
                     threshold_value=config['threshold_value'],
                     operator=config['threshold_operator'],
                     device_name=device_name,
-                    top_source=top_source
+                    top_source=top_source,
+                    per_ip_results=per_ip_results
                 )
 
                 # Record alert in history
@@ -263,9 +297,9 @@ class ThroughputCollector:
                     sys.stdout.flush()
 
                     # Set cooldown period in database (persistent across restarts)
-                    alert_manager.set_cooldown(device_id, alert_config_id, _COOLDOWN_PERIOD_SECONDS)
-                    debug(f"Alert {alert_config_id} cooldown started ({_COOLDOWN_PERIOD_SECONDS}s)")
-                    print(f"[ALERT CHECK] ✓ Cooldown started ({_COOLDOWN_PERIOD_SECONDS}s = 15 minutes)")
+                    alert_manager.set_cooldown(device_id, alert_config_id, cooldown_seconds)
+                    debug(f"Alert {alert_config_id} ({severity}) cooldown started ({cooldown_seconds}s = {cooldown_seconds/60:.1f} minutes)")
+                    print(f"[ALERT CHECK] ✓ Cooldown started ({cooldown_seconds}s = {cooldown_seconds/60:.1f} minutes)")
                     sys.stdout.flush()
 
                     # Send notifications via configured channels
@@ -303,6 +337,51 @@ class ThroughputCollector:
             print(f"[ALERT CHECK] ✗ EXCEPTION: {str(e)}")
             sys.stdout.flush()
             exception("Error checking alert thresholds for device %s: %s", device_name, str(e))
+
+    def _compute_top_bandwidth_client(self, device_id: str) -> Dict:
+        """
+        Compute top bandwidth clients (internal and internet) from traffic_logs in last 5 minutes.
+
+        Returns dict with three keys:
+        - 'top_internal': Top client for internal-only traffic
+        - 'top_internet': Top client for internet-bound traffic
+        - 'top_bandwidth': Overall top client (for backward compatibility)
+        """
+        try:
+            debug(f"Computing top bandwidth clients (internal & internet) for device {device_id}")
+
+            # Get top internal client (internal-only traffic)
+            top_internal = self.storage.get_top_internal_client(device_id, minutes=5)
+            if top_internal:
+                debug(f"Top internal client: {top_internal['ip']} ({top_internal.get('custom_name') or top_internal.get('hostname', 'Unknown')}) "
+                      f"- {top_internal['total_bytes']/1_000_000:.2f} MB total")
+            else:
+                debug("No internal-only client found")
+
+            # Get top internet client (internet-bound traffic)
+            top_internet = self.storage.get_top_internet_client(device_id, minutes=5)
+            if top_internet:
+                debug(f"Top internet client: {top_internet['ip']} ({top_internet.get('custom_name') or top_internet.get('hostname', 'Unknown')}) "
+                      f"- {top_internet['total_bytes']/1_000_000:.2f} MB total")
+            else:
+                debug("No internet client found")
+
+            # For backward compatibility, use internet client as overall top (or internal if no internet)
+            top_bandwidth = top_internet or top_internal or {}
+
+            return {
+                'top_internal': top_internal or {},
+                'top_internet': top_internet or {},
+                'top_bandwidth': top_bandwidth
+            }
+
+        except Exception as e:
+            exception(f"Error computing top bandwidth clients: {str(e)}")
+            return {
+                'top_internal': {},
+                'top_internet': {},
+                'top_bandwidth': {}
+            }
 
     # ========================================================================
     # Phase 3: Detailed Log Collection Methods

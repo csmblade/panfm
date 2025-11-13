@@ -750,8 +750,10 @@ function initializeTonyMode(enabled) {
  * Phase 5: Updated to use both /api/services/status and /api/collector/status
  */
 async function refreshServicesStatus() {
+    console.log('[DEBUG] refreshServicesStatus() called');
     try {
         // Fetch both endpoints in parallel for comprehensive data
+        console.log('[DEBUG] Fetching /api/services/status and /api/collector/status');
         const [servicesResponse, collectorResponse] = await Promise.all([
             fetch('/api/services/status', {
                 headers: { 'Content-Type': 'application/json' }
@@ -768,48 +770,76 @@ async function refreshServicesStatus() {
         const servicesData = await servicesResponse.json();
         const collectorData = await collectorResponse.json();
 
+        console.log('[DEBUG] servicesData:', servicesData);
+        console.log('[DEBUG] collectorData:', collectorData);
+        console.log('[DEBUG] Both statuses:', servicesData.status, collectorData.status);
+
         if (servicesData.status === 'success' && collectorData.status === 'success') {
-            // Update APScheduler status (from services endpoint)
+            console.log('[DEBUG] Both APIs returned success, updating DOM...');
+            // Update APScheduler status (enhanced with direct stats from Priority 2)
             const schedulerState = document.getElementById('scheduler-state');
-            const schedulerJobs = document.getElementById('scheduler-jobs');
-            const schedulerLastRun = document.getElementById('scheduler-last-run');
-            const schedulerNextRun = document.getElementById('scheduler-next-run');
+            const schedulerUptime = document.getElementById('scheduler-uptime');
+            const schedulerExecutions = document.getElementById('scheduler-executions');
+            const schedulerErrors = document.getElementById('scheduler-errors');
+            const schedulerLastExecution = document.getElementById('scheduler-last-execution');
+            const schedulerErrorDetails = document.getElementById('scheduler-error-details');
+            const schedulerLastError = document.getElementById('scheduler-last-error');
+            const schedulerLastErrorTime = document.getElementById('scheduler-last-error-time');
 
-            if (schedulerState) {
-                const isEnabled = collectorData.enabled;
-                const isRunning = servicesData.scheduler.state === 'Running';
-                schedulerState.textContent = isEnabled && isRunning ? 'Running' : 'Stopped';
-                schedulerState.style.color = isEnabled && isRunning ? '#10b981' : '#ef4444';
-            }
+            // Display direct scheduler stats if available
+            if (schedulerState && servicesData.scheduler) {
+                const state = servicesData.scheduler.state || 'Unknown';
+                const isRunning = state.toLowerCase().includes('running');
 
-            if (schedulerJobs) {
-                // Show total collections from collector endpoint
-                schedulerJobs.textContent = collectorData.total_collections?.toLocaleString() || 0;
-            }
+                schedulerState.textContent = state;
+                schedulerState.style.color = isRunning ? '#10b981' : '#ef4444';
 
-            if (schedulerLastRun) {
-                if (collectorData.last_cleanup) {
-                    const lastRun = new Date(collectorData.last_cleanup);
-                    schedulerLastRun.textContent = formatRelativeTime(lastRun);
-                } else if (servicesData.scheduler.last_run) {
-                    const lastRun = new Date(servicesData.scheduler.last_run);
-                    schedulerLastRun.textContent = formatRelativeTime(lastRun);
+                // Show status indicator emoji
+                if (isRunning) {
+                    schedulerState.textContent = '🟢 ' + state;
+                } else if (state.toLowerCase().includes('stopped')) {
+                    schedulerState.textContent = '🔴 ' + state;
                 } else {
-                    schedulerLastRun.textContent = 'Never';
+                    schedulerState.textContent = '🟡 ' + state;
                 }
             }
 
-            if (schedulerNextRun) {
-                // Calculate next run based on interval
-                if (servicesData.jobs && servicesData.jobs.length > 0 && servicesData.jobs[0].next_run) {
-                    const nextRun = new Date(servicesData.jobs[0].next_run);
-                    schedulerNextRun.textContent = formatRelativeTime(nextRun);
-                } else if (collectorData.interval_seconds) {
-                    const intervalSecs = collectorData.interval_seconds;
-                    schedulerNextRun.textContent = `in ${intervalSecs} sec${intervalSecs !== 1 ? 's' : ''}`;
-                } else {
-                    schedulerNextRun.textContent = 'N/A';
+            if (schedulerUptime && servicesData.scheduler.uptime_formatted) {
+                schedulerUptime.textContent = servicesData.scheduler.uptime_formatted;
+            } else if (schedulerUptime) {
+                schedulerUptime.textContent = '--';
+            }
+
+            if (schedulerExecutions) {
+                schedulerExecutions.textContent = (servicesData.scheduler.total_executions || 0).toLocaleString();
+            }
+
+            if (schedulerErrors) {
+                const errors = servicesData.scheduler.total_errors || 0;
+                schedulerErrors.textContent = errors.toLocaleString();
+                schedulerErrors.style.color = errors > 0 ? '#ef4444' : '#10b981';
+                schedulerErrors.style.fontWeight = errors > 0 ? '600' : 'normal';
+            }
+
+            if (schedulerLastExecution && servicesData.scheduler.last_execution) {
+                const lastExec = new Date(servicesData.scheduler.last_execution);
+                schedulerLastExecution.textContent = formatRelativeTime(lastExec);
+            } else if (schedulerLastExecution) {
+                schedulerLastExecution.textContent = 'Never';
+            }
+
+            // Show last error if exists
+            if (schedulerErrorDetails && servicesData.scheduler.last_error) {
+                schedulerErrorDetails.style.display = 'block';
+                if (schedulerLastError) {
+                    schedulerLastError.textContent = servicesData.scheduler.last_error;
                 }
+                if (schedulerLastErrorTime && servicesData.scheduler.last_error_time) {
+                    const errorTime = new Date(servicesData.scheduler.last_error_time);
+                    schedulerLastErrorTime.textContent = `Occurred: ${formatRelativeTime(errorTime)}`;
+                }
+            } else if (schedulerErrorDetails) {
+                schedulerErrorDetails.style.display = 'none';
             }
 
             // Update Database status (from collector endpoint - more accurate)
@@ -851,24 +881,54 @@ async function refreshServicesStatus() {
                 }
             }
 
-            // Update jobs list (from services endpoint)
+            // Update jobs list (enhanced with per-job stats from Priority 2)
             const jobsList = document.getElementById('jobs-list');
             if (jobsList && servicesData.jobs && servicesData.jobs.length > 0) {
                 let jobsHtml = '<div style="display: grid; gap: 10px;">';
                 servicesData.jobs.forEach(job => {
-                    const nextRun = job.next_run ? new Date(job.next_run) : null;
+                    // Parse ISO timestamp as UTC (add Z suffix if missing)
+                    let lastRun = null;
+                    if (job.last_run) {
+                        const timestamp = job.last_run.endsWith('Z') ? job.last_run : job.last_run + 'Z';
+                        lastRun = new Date(timestamp);
+                    }
+                    const hasError = job.error_count && job.error_count > 0;
+                    const statusColor = hasError ? '#ef4444' : '#10b981';
+
                     jobsHtml += `
-                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #FA582D;">
-                            <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(job.name || job.id)}</div>
-                            <div style="font-size: 0.85em; color: #666;">
-                                <strong>Next Run:</strong> ${nextRun ? formatRelativeTime(nextRun) : 'N/A'}
-                            </div>
-                            <div style="font-size: 0.85em; color: #666;">
+                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${hasError ? '#ef4444' : '#FA582D'};">
+                            <div style="font-weight: 600; margin-bottom: 8px;">${escapeHtml(job.name || job.id)}</div>
+                            ${job.description ? `<div style="font-size: 0.85em; color: #555; margin-bottom: 8px; font-style: italic;">${escapeHtml(job.description)}</div>` : ''}
+                            <div style="font-size: 0.85em; color: #666; margin-bottom: 3px;">
                                 <strong>Trigger:</strong> ${escapeHtml(job.trigger)}
                             </div>
-                            <div style="font-size: 0.85em; color: #666;">
-                                <strong>Interval:</strong> ${collectorData.interval_seconds || 60} seconds
+                            <div style="font-size: 0.85em; color: #666; margin-bottom: 3px;">
+                                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 500;">${escapeHtml(job.status)}</span>
                             </div>
+                            ${job.success_count !== undefined ? `
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                    <div style="font-size: 0.8em; color: #666;">
+                                        <strong>✓ Success:</strong> <span style="color: #10b981; font-weight: 600;">${job.success_count.toLocaleString()}</span>
+                                    </div>
+                                    <div style="font-size: 0.8em; color: #666;">
+                                        <strong>✗ Errors:</strong> <span style="color: ${hasError ? '#ef4444' : '#666'}; font-weight: ${hasError ? '600' : 'normal'};">${job.error_count.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${lastRun ? `
+                                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
+                                    <strong>Last Run:</strong> ${formatRelativeTime(lastRun)}
+                                </div>
+                            ` : ''}
+                            ${job.last_error ? `
+                                <div style="margin-top: 8px; padding: 6px; background: #fee; border-left: 2px solid #ef4444; border-radius: 3px;">
+                                    <div style="font-size: 0.75em; color: #ef4444; font-weight: 600;">Last Error:</div>
+                                    <div style="font-size: 0.75em; color: #666; word-break: break-word;">${escapeHtml(job.last_error.substring(0, 100))}${job.last_error.length > 100 ? '...' : ''}</div>
+                                </div>
+                            ` : ''}
+                            ${job.data_collected ? `<div style="font-size: 0.85em; color: #666; margin-top: 6px;">
+                                <strong>Data Collected:</strong> ${escapeHtml(job.data_collected)}
+                            </div>` : ''}
                         </div>
                     `;
                 });
@@ -919,23 +979,79 @@ async function refreshServicesStatus() {
 
         } else {
             console.error('Failed to load services status:', servicesData.message || collectorData.message);
+
+            // Show error state when API returns error status
+            const schedulerState = document.getElementById('scheduler-state');
+            const schedulerJobs = document.getElementById('scheduler-jobs');
+            const schedulerLastRun = document.getElementById('scheduler-last-run');
+            const schedulerNextRun = document.getElementById('scheduler-next-run');
+            const databaseState = document.getElementById('database-state');
+            const databaseSize = document.getElementById('database-size');
+            const databaseSamples = document.getElementById('database-samples');
+            const databaseOldest = document.getElementById('database-oldest');
+            const jobsList = document.getElementById('jobs-list');
+            const deviceStats = document.getElementById('device-stats');
+
+            if (schedulerState) {
+                schedulerState.textContent = 'Error';
+                schedulerState.style.color = '#ef4444';
+            }
+            if (schedulerJobs) schedulerJobs.textContent = 'N/A';
+            if (schedulerLastRun) schedulerLastRun.textContent = 'N/A';
+            if (schedulerNextRun) schedulerNextRun.textContent = 'N/A';
+
+            if (databaseState) {
+                databaseState.textContent = 'Error';
+                databaseState.style.color = '#ef4444';
+            }
+            if (databaseSize) databaseSize.textContent = 'N/A';
+            if (databaseSamples) databaseSamples.textContent = 'N/A';
+            if (databaseOldest) databaseOldest.textContent = 'N/A';
+
+            if (jobsList) {
+                jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading job information</div>';
+            }
+            if (deviceStats) {
+                deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading device statistics</div>';
+            }
         }
 
     } catch (error) {
         console.error('Error loading services status:', error);
 
-        // Show error state
+        // Show error state with all fields updated
         const schedulerState = document.getElementById('scheduler-state');
+        const schedulerJobs = document.getElementById('scheduler-jobs');
+        const schedulerLastRun = document.getElementById('scheduler-last-run');
+        const schedulerNextRun = document.getElementById('scheduler-next-run');
         const databaseState = document.getElementById('database-state');
+        const databaseSize = document.getElementById('database-size');
+        const databaseSamples = document.getElementById('database-samples');
+        const databaseOldest = document.getElementById('database-oldest');
+        const jobsList = document.getElementById('jobs-list');
+        const deviceStats = document.getElementById('device-stats');
 
         if (schedulerState) {
             schedulerState.textContent = 'Error';
             schedulerState.style.color = '#ef4444';
         }
+        if (schedulerJobs) schedulerJobs.textContent = 'N/A';
+        if (schedulerLastRun) schedulerLastRun.textContent = 'N/A';
+        if (schedulerNextRun) schedulerNextRun.textContent = 'N/A';
 
         if (databaseState) {
             databaseState.textContent = 'Error';
             databaseState.style.color = '#ef4444';
+        }
+        if (databaseSize) databaseSize.textContent = 'N/A';
+        if (databaseSamples) databaseSamples.textContent = 'N/A';
+        if (databaseOldest) databaseOldest.textContent = 'N/A';
+
+        if (jobsList) {
+            jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading job information</div>';
+        }
+        if (deviceStats) {
+            deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading device statistics</div>';
         }
     }
 }

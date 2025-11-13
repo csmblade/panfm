@@ -238,6 +238,81 @@ def register_operations_routes(app, csrf, limiter):
                 'source': 'error'
             })
 
+    @app.route('/api/top-category')
+    @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
+    @login_required
+    def top_category_api():
+        """
+        API endpoint for top application category by volume.
+
+        Supports time range parameter for historical aggregation.
+        Query params:
+            range: Time range (1h, 6h, 24h, 7d, 30d) or omit for latest snapshot
+
+        Returns:
+            JSON with status, category name, and bytes volume
+        """
+        debug("=== Top Category API endpoint called ===")
+        try:
+            from config import load_settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected',
+                    'category': None,
+                    'bytes': 0
+                })
+
+            # Get time range parameter
+            time_range = request.args.get('range', None)
+            debug(f"Time range parameter: {time_range}")
+
+            # Get data from database
+            from throughput_collector import get_collector
+            collector = get_collector()
+
+            if not collector or not collector.storage:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Database collector not initialized',
+                    'category': None,
+                    'bytes': 0
+                })
+
+            # Get top category for time range
+            result = collector.storage.get_top_category_for_range(device_id, time_range)
+
+            if result and 'category' in result:
+                debug(f"Top category: {result['category']} with {result['bytes']} bytes")
+                return jsonify({
+                    'status': 'success',
+                    'category': result['category'],
+                    'bytes': result['bytes'],
+                    'timestamp': datetime.now().isoformat(),
+                    'range': time_range or 'latest'
+                })
+            else:
+                debug("No category data available")
+                return jsonify({
+                    'status': 'success',
+                    'category': None,
+                    'bytes': 0,
+                    'timestamp': datetime.now().isoformat(),
+                    'range': time_range or 'latest'
+                })
+
+        except Exception as e:
+            error(f"Error in top category API: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'category': None,
+                'bytes': 0
+            })
+
     # ============================================================================
     # Software & License Endpoints
     # ============================================================================

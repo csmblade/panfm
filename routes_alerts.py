@@ -240,12 +240,20 @@ def register_alert_routes(app, csrf, limiter):
             device_id = request.args.get('device_id')
             limit = int(request.args.get('limit', 100))
             unresolved_only = request.args.get('unresolved_only', 'false').lower() == 'true'
+            unresolved = request.args.get('unresolved', 'false').lower() == 'true'
+            acknowledged = request.args.get('acknowledged', 'false').lower() == 'true'
+            severity = request.args.get('severity')  # 'critical', 'warning', or 'info'
 
             history = alert_manager.get_alert_history(
                 device_id=device_id,
                 limit=limit,
-                unresolved_only=unresolved_only
+                unresolved_only=unresolved_only or unresolved,
+                severity=severity
             )
+
+            # Filter by acknowledged status if requested
+            if acknowledged:
+                history = [h for h in history if h.get('acknowledged_at') is not None][:limit]
 
             return jsonify({
                 'status': 'success',
@@ -500,8 +508,10 @@ def register_alert_routes(app, csrf, limiter):
                 'enabled_configs': len([c for c in configs if c['enabled']]),
                 'total_alerts': len(history),
                 'unresolved_alerts': len([h for h in history if not h['resolved_at']]),
-                'critical_alerts': len([h for h in history if h['severity'] == 'critical' and not h['resolved_at']]),
-                'warning_alerts': len([h for h in history if h['severity'] == 'warning' and not h['resolved_at']]),
+                # Count only unacknowledged alerts (acknowledged_at is None)
+                'critical_alerts': len([h for h in history if h['severity'] == 'critical' and not h['acknowledged_at']]),
+                'warning_alerts': len([h for h in history if h['severity'] == 'warning' and not h['acknowledged_at']]),
+                'info_alerts': len([h for h in history if h['severity'] == 'info' and not h['acknowledged_at']]),
                 'acknowledged_alerts': len([h for h in history if h['acknowledged_at'] and not h['resolved_at']]),
                 'by_severity': {
                     'critical': len([h for h in history if h['severity'] == 'critical']),

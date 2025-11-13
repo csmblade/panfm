@@ -19,9 +19,11 @@ from device_metadata import (
     migrate_global_to_per_device,
     reload_metadata_cache
 )
-from firewall_api import get_connected_devices, get_firewall_config
+from firewall_api import get_firewall_config
 from utils import reverse_dns_lookup
 from logger import debug, info, error, exception
+from config import THROUGHPUT_DB_FILE, load_settings
+from throughput_storage import ThroughputStorage
 
 
 def register_device_metadata_routes(app, csrf, limiter):
@@ -36,20 +38,47 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
     def connected_devices_api():
-        """API endpoint for connected devices (ARP entries)"""
+        """API endpoint for connected devices (ARP entries) - reads from database"""
         debug("=== Connected Devices API endpoint called ===")
         try:
-            firewall_config = get_firewall_config()
-            devices = get_connected_devices(firewall_config)
-            debug(f"Retrieved {len(devices)} devices from firewall")
+            # Get current device ID from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                debug("No device selected, returning empty list")
+                return jsonify({
+                    'status': 'success',
+                    'devices': [],
+                    'total': 0,
+                    'message': 'No device selected',
+                    'timestamp': datetime.now().isoformat()
+                })
+
+            # Query from database (max 90 seconds old)
+            storage = ThroughputStorage(THROUGHPUT_DB_FILE)
+            devices = storage.get_connected_devices(device_id, max_age_seconds=90)
+
+            if not devices:
+                debug(f"No recent connected devices data for device {device_id}, waiting for collection")
+                return jsonify({
+                    'status': 'success',
+                    'devices': [],
+                    'total': 0,
+                    'message': 'Waiting for data collection (updates every 60 seconds)',
+                    'timestamp': datetime.now().isoformat()
+                })
+
+            debug(f"Retrieved {len(devices)} devices from database for device {device_id}")
             return jsonify({
                 'status': 'success',
                 'devices': devices,
                 'total': len(devices),
+                'source': 'database',
                 'timestamp': datetime.now().isoformat()
             })
         except Exception as e:
-            error(f"Error in connected devices API: {str(e)}")
+            exception(f"Error in connected devices API: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': str(e),

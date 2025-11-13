@@ -675,7 +675,7 @@
                     <span style="color: #FA582D;">PAN</span><span style="color: #000; text-shadow: -1px -1px 0 #FA582D, 1px -1px 0 #FA582D, -1px 1px 0 #FA582D, 1px 1px 0 #FA582D;">fm</span>
                 </div>
                 <div style="font-family: var(--font-secondary); font-size: 12px; color: #aaa; margin-top: 5px;">
-                    Palo Alto Networks Firewall Monitor
+                    Firewall Monitor
                 </div>
             </div>
         </div>
@@ -919,58 +919,116 @@
             </div>
         </div>
 
-        <!-- Network Traffic and Active Sessions Container -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <!-- Traffic Tile -->
-            <div style="background: linear-gradient(135deg, #C64620 0%, #E85A31 100%); border-radius: 8px; padding: 10px; box-shadow: 0 2px 8px rgba(198, 70, 32, 0.3); color: white;">
-                <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 2px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">NETWORK TRAFFIC</div>
-                <div id="totalPps" style="font-size: 1.5em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
-                <div style="font-size: 0.6em; opacity: 0.8; margin-top: 2px; font-family: var(--font-secondary);">Total packets per second</div>
+        <!-- Firewall Health Status Bar (horizontal layout like throughput stats) -->
+        <div style="margin-top: 20px; padding: 15px; background: #3c3c3c; border-radius: 8px; color: white;">
+            <div style="display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 20px;">
 
-                <!-- Mini Chart -->
-                <div style="margin-top: 6px; height: 50px;">
-                    <canvas id="ppsChart"></canvas>
-                </div>
-
-                <!-- Traffic Stats -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.65em;">
-                    <div style="text-align: center;">
-                        <div style="opacity: 0.8; font-family: var(--font-secondary);">Inbound PPS</div>
-                        <div id="inboundPps" style="font-weight: 600; font-family: var(--font-primary);">-</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="opacity: 0.8; font-family: var(--font-secondary);">Outbound PPS</div>
-                        <div id="outboundPps" style="font-weight: 600; font-family: var(--font-primary);">-</div>
+                <!-- CPU -->
+                <div style="text-align: center;">
+                    <div style="font-size: 0.75em; opacity: 0.8; font-family: var(--font-secondary); margin-bottom: 2px;">Data Plane CPU</div>
+                    <div style="font-size: 1.5em; font-weight: 700; font-family: var(--font-primary); color: #FA582D;">
+                        <span id="cyberHealthCpu">-</span><span style="font-size: 0.6em;">%</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- Active Sessions Tile -->
-            <div style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); border-radius: 8px; padding: 10px; box-shadow: 0 2px 8px rgba(224, 79, 38, 0.3); color: white;">
-                <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 2px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">ACTIVE SESSIONS</div>
-                <div id="sessionValue" style="font-size: 1.5em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
-                <div style="font-size: 0.6em; opacity: 0.8; margin-top: 2px; font-family: var(--font-secondary);">Total connections</div>
-
-                <!-- Mini Chart -->
-                <div style="margin-top: 6px; height: 50px;">
-                    <canvas id="sessionChart"></canvas>
-                </div>
-
-                <!-- Session Stats -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.65em;">
-                    <div style="text-align: center;">
-                        <div style="opacity: 0.8; font-family: var(--font-secondary);">TCP</div>
-                        <div id="tcpValue" style="font-weight: 600; font-family: var(--font-primary);">-</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="opacity: 0.8; font-family: var(--font-secondary);">UDP</div>
-                        <div id="udpValue" style="font-weight: 600; font-family: var(--font-primary);">-</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="opacity: 0.8; font-family: var(--font-secondary);">ICMP</div>
-                        <div id="icmpValue" style="font-weight: 600; font-family: var(--font-primary);">-</div>
+                <!-- Memory -->
+                <div style="text-align: center;">
+                    <div style="font-size: 0.75em; opacity: 0.8; font-family: var(--font-secondary); margin-bottom: 2px;">Memory</div>
+                    <div style="font-size: 1.5em; font-weight: 700; font-family: var(--font-primary); color: #FA582D;">
+                        <span id="cyberHealthMemory">-</span><span style="font-size: 0.6em;">%</span>
                     </div>
                 </div>
+
+                <!-- PPS -->
+                <div style="text-align: center;">
+                    <div style="font-size: 0.75em; opacity: 0.8; font-family: var(--font-secondary); margin-bottom: 2px;">PPS</div>
+                    <div style="font-size: 1.5em; font-weight: 700; font-family: var(--font-primary);" id="cyberHealthPps">-</div>
+                </div>
+
+                <!-- Sessions -->
+                <div style="text-align: center;">
+                    <div style="font-size: 0.75em; opacity: 0.8; font-family: var(--font-secondary); margin-bottom: 2px;">Sessions</div>
+                    <div style="font-size: 1.5em; font-weight: 700; font-family: var(--font-primary);" id="cyberHealthSessions">-</div>
+                </div>
+
+                <!-- Top Category (Local LAN vs Internet) -->
+                <div style="min-width: 300px; padding: 8px 12px; background: #3a3a3a; border-radius: 4px;">
+                    <!-- Header -->
+                    <div style="font-size: 0.75em; color: white; font-family: var(--font-secondary); margin-bottom: 6px; text-align: center; border-bottom: 2px solid white; padding-bottom: 4px;">
+                        Top Category (5 min)
+                    </div>
+
+                    <!-- Split View Container -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <!-- Left: Local LAN Category -->
+                        <div style="border-right: 1px solid rgba(255,255,255,0.3); padding-right: 6px;">
+                            <div style="font-size: 0.7em; color: white; font-weight: 600; margin-bottom: 3px; font-family: var(--font-primary);">
+                                Local LAN
+                            </div>
+                            <div id="cyberHealthTopCategoryLAN" style="font-size: 0.85em; color: white; font-weight: 600; margin-bottom: 4px; font-family: var(--font-primary);">-</div>
+                            <div style="font-size: 0.65em; color: rgba(255,255,255,0.8); font-family: var(--font-secondary);">
+                                <div>↑ <span id="cyberHealthTopCategoryLANSent">--</span></div>
+                                <div>↓ <span id="cyberHealthTopCategoryLANReceived">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Internet Category -->
+                        <div style="padding-left: 6px;">
+                            <div style="font-size: 0.7em; color: white; font-weight: 600; margin-bottom: 3px; font-family: var(--font-primary);">
+                                Internet
+                            </div>
+                            <div id="cyberHealthTopCategoryInternet" style="font-size: 0.85em; color: white; font-weight: 600; margin-bottom: 4px; font-family: var(--font-primary);">-</div>
+                            <div style="font-size: 0.65em; color: rgba(255,255,255,0.8); font-family: var(--font-secondary);">
+                                <div>↑ <span id="cyberHealthTopCategoryInternetSent">--</span></div>
+                                <div>↓ <span id="cyberHealthTopCategoryInternetReceived">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Clients (Local LAN vs Internet) -->
+                <div style="min-width: 300px; padding: 8px 12px; background: #3a3a3a; border-radius: 4px;">
+                    <!-- Header -->
+                    <div style="font-size: 0.75em; color: white; font-family: var(--font-secondary); margin-bottom: 6px; text-align: center; border-bottom: 2px solid white; padding-bottom: 4px;">
+                        Top Clients (5 min)
+                    </div>
+
+                    <!-- Split View Container -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <!-- Left: Local LAN Client -->
+                        <div style="border-right: 1px solid rgba(255,255,255,0.3); padding-right: 6px;">
+                            <div style="font-size: 0.7em; color: white; font-weight: 600; margin-bottom: 3px; font-family: var(--font-primary);">
+                                Local LAN
+                            </div>
+                            <div id="cyberHealthTopInternalIp" style="font-size: 0.85em; color: white; font-weight: 600; margin-bottom: 1px; font-family: var(--font-primary);">--</div>
+                            <div id="cyberHealthTopInternalHostname" style="font-size: 0.7em; color: rgba(255,255,255,0.8); margin-bottom: 4px; font-family: var(--font-secondary);">--</div>
+                            <div style="font-size: 0.65em; color: rgba(255,255,255,0.8); font-family: var(--font-secondary);">
+                                <div>↑ <span id="cyberHealthTopInternalSent">--</span></div>
+                                <div>↓ <span id="cyberHealthTopInternalReceived">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Internet Client -->
+                        <div style="padding-left: 6px;">
+                            <div style="font-size: 0.7em; color: white; font-weight: 600; margin-bottom: 3px; font-family: var(--font-primary);">
+                                Internet
+                            </div>
+                            <div id="cyberHealthTopInternetIp" style="font-size: 0.85em; color: white; font-weight: 600; margin-bottom: 1px; font-family: var(--font-primary);">--</div>
+                            <div id="cyberHealthTopInternetHostname" style="font-size: 0.7em; color: rgba(255,255,255,0.8); margin-bottom: 4px; font-family: var(--font-secondary);">--</div>
+                            <div style="font-size: 0.65em; color: rgba(255,255,255,0.8); font-family: var(--font-secondary);">
+                                <div>↑ <span id="cyberHealthTopInternetSent">--</span></div>
+                                <div>↓ <span id="cyberHealthTopInternetReceived">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Alerts (clickable) -->
+                <div style="text-align: center; min-width: 120px; cursor: pointer;" onclick="showPage('alerts')">
+                    <div style="font-size: 0.75em; opacity: 0.8; font-family: var(--font-secondary); margin-bottom: 2px;">Active Alerts</div>
+                    <div style="font-size: 1.5em; font-weight: 700; font-family: var(--font-primary);" id="cyberHealthActiveAlerts">-</div>
+                </div>
+
             </div>
         </div>
 
@@ -1241,6 +1299,16 @@
                             <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Filter by Category</label>
                             <select id="applicationsCategoryFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer;">
                                 <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Traffic Type</label>
+                            <select id="applicationsTrafficFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer;">
+                                <option value="">All Traffic</option>
+                                <option value="internet">🌐 Internet Only</option>
+                                <option value="local">🏠 Local Only</option>
+                                <option value="mixed">🔀 Mixed</option>
+                                <option value="unknown">❓ Unknown</option>
                             </select>
                         </div>
                         <div>
@@ -1738,60 +1806,54 @@
                     <p style="color: #FA582D; font-size: 0.9em; margin: 0; font-family: var(--font-secondary);">Configure and Monitor Firewall Alerts</p>
                 </div>
 
-                <!-- Alert Statistics Tiles -->
+                <!-- Alert Statistics Tiles - Three Severity Cards -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
-                    <div style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.3);">
-                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">ALERT RULES</div>
-                        <div id="alertStatsRules" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    <!-- INFO Card (Blue) -->
+                    <div onclick="showInfoAlertsModal()" style="background: linear-gradient(135deg, #17a2b8 0%, #20c0d7 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4); cursor: pointer; transition: transform 0.2s; display: flex; justify-content: space-between; align-items: center; min-height: 100px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <div style="flex-shrink: 0; flex-basis: 50%;">
+                            <div style="font-size: 0.9em; opacity: 0.95; margin-bottom: 8px; font-family: var(--font-primary); text-shadow: 0 1px 2px rgba(0,0,0,0.2);">INFO</div>
+                            <div id="alertStatsInfo" style="font-size: 2.5em; font-weight: 700; font-family: var(--font-primary); text-shadow: 0 1px 3px rgba(0,0,0,0.3);">0</div>
+                        </div>
+                        <div id="alertLatestInfo" style="font-size: 1.1em; line-height: 1.4; font-family: var(--font-secondary); text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-weight: 600; text-align: right; flex-basis: 50%; max-width: 50%; word-wrap: break-word; overflow-wrap: break-word;">No active alerts</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, #17a2b8 0%, #3ec9dd 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);">
-                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">ACTIVE ALERTS</div>
-                        <div id="alertStatsActive" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+
+                    <!-- WARNING Card (Yellow/Orange) -->
+                    <div onclick="showWarningAlertsModal()" style="background: linear-gradient(135deg, #ffc107 0%, #ffcd39 100%); color: #1a1a1a; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4); cursor: pointer; transition: transform 0.2s; display: flex; justify-content: space-between; align-items: center; min-height: 100px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <div style="flex-shrink: 0; flex-basis: 50%;">
+                            <div style="font-size: 0.9em; opacity: 0.85; margin-bottom: 8px; font-family: var(--font-primary); font-weight: 600;">WARNING</div>
+                            <div id="alertStatsWarning" style="font-size: 2.5em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                        </div>
+                        <div id="alertLatestWarning" style="font-size: 1.1em; line-height: 1.4; font-family: var(--font-secondary); opacity: 0.9; font-weight: 700; text-align: right; flex-basis: 50%; max-width: 50%; word-wrap: break-word; overflow-wrap: break-word;">No active alerts</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, #dc3545 0%, #ff5a6a 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);">
-                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">CRITICAL</div>
-                        <div id="alertStatsCritical" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
-                    </div>
-                    <div style="background: linear-gradient(135deg, #ffc107 0%, #ffcd39 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);">
-                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">WARNINGS</div>
-                        <div id="alertStatsWarnings" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+
+                    <!-- CRITICAL Card (Red) -->
+                    <div onclick="showCriticalAlertsModal()" style="background: linear-gradient(135deg, #dc3545 0%, #e45663 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4); cursor: pointer; transition: transform 0.2s; display: flex; justify-content: space-between; align-items: center; min-height: 100px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <div style="flex-shrink: 0; flex-basis: 50%;">
+                            <div style="font-size: 0.9em; opacity: 0.95; margin-bottom: 8px; font-family: var(--font-primary); text-shadow: 0 1px 2px rgba(0,0,0,0.2);">CRITICAL</div>
+                            <div id="alertStatsCritical" style="font-size: 2.5em; font-weight: 700; font-family: var(--font-primary); text-shadow: 0 1px 3px rgba(0,0,0,0.3);">0</div>
+                        </div>
+                        <div id="alertLatestCritical" style="font-size: 1.1em; line-height: 1.4; font-family: var(--font-secondary); text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-weight: 600; text-align: right; flex-basis: 50%; max-width: 50%; word-wrap: break-word; overflow-wrap: break-word;">No active alerts</div>
                     </div>
                 </div>
 
                 <!-- Quick Actions Section -->
                 <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <button onclick="showCreateAlertModal()" style="padding: 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.2); font-family: var(--font-primary);">
-                            <div style="font-size: 1.5em; margin-bottom: 5px;">+</div>
-                            Create New Alert
+                        <button onclick="showCreateAlertModal()" style="padding: 20px; background: linear-gradient(135deg, #E8491D 0%, #FA582D 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(232, 73, 29, 0.3); font-family: var(--font-primary);">
+                            Create Metric Alert
                         </button>
-                        <button onclick="showCreateApplicationAlertModal()" style="padding: 20px; background: linear-gradient(135deg, #28a745 0%, #48c765 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2); font-family: var(--font-primary);">
-                            <div style="font-size: 1.5em; margin-bottom: 5px;">📱</div>
-                            Create Application Alert
-                        </button>
-                        <button onclick="showTemplatesModal()" style="padding: 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.2); font-family: var(--font-primary);">
-                            <div style="font-size: 1.5em; margin-bottom: 5px;">📋</div>
-                            Browse Templates
-                        </button>
-                        <button onclick="showQuickStartModal()" style="padding: 20px; background: linear-gradient(135deg, #007bff 0%, #3395ff 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2); font-family: var(--font-primary);">
-                            <div style="font-size: 1.5em; margin-bottom: 5px;">🚀</div>
-                            Quick Start Setup
-                        </button>
-                        <button onclick="loadAlertHistory()" style="padding: 20px; background: linear-gradient(135deg, #6c757d 0%, #8896a3 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(108, 117, 125, 0.2); font-family: var(--font-primary);">
-                            <div style="font-size: 1.5em; margin-bottom: 5px;">📊</div>
+                        <button onclick="showAlertHistoryFullModal()" style="padding: 20px; background: linear-gradient(135deg, #B8541E 0%, #D96534 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(184, 84, 30, 0.3); font-family: var(--font-primary);">
                             View Alert History
+                        </button>
+                        <button onclick="showQuickStartModal()" style="padding: 20px; background: linear-gradient(135deg, #C23C14 0%, #D94A1F 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(194, 60, 20, 0.3); font-family: var(--font-primary);">
+                            Quick Start Setup
                         </button>
                     </div>
                 </div>
 
                 <!-- My Alert Configurations -->
                 <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="color: #333; margin: 0; font-size: 1.4em; font-family: var(--font-primary);">My Alert Configurations</h2>
-                        <button onclick="loadAlertConfigs()" style="padding: 10px 20px; background: linear-gradient(135deg, #6c757d 0%, #8896a3 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 6px rgba(108, 117, 125, 0.2); transition: transform 0.2s;">
-                            🔄 Refresh
-                        </button>
-                    </div>
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">My Alert Configurations</h2>
                     <div id="alertConfigsTable" style="font-family: var(--font-secondary);"></div>
                 </div>
             </div>
@@ -2445,20 +2507,28 @@
                                 <div style="background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px;">
                                     <div style="display: flex; align-items: center; margin-bottom: 15px;">
                                         <span style="font-size: 2em; margin-right: 10px;">⏱️</span>
-                                        <h3 style="color: #FA582D; margin: 0; font-size: 1.1em;">APScheduler</h3>
+                                        <h3 style="color: #FA582D; margin: 0; font-size: 1.1em;">Clock Process (APScheduler)</h3>
                                     </div>
                                     <div id="scheduler-status" style="margin-bottom: 10px;">
                                         <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
                                             <strong>Status:</strong> <span id="scheduler-state" style="color: #10b981; font-weight: 600;">Loading...</span>
                                         </div>
                                         <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
-                                            <strong>Jobs Running:</strong> <span id="scheduler-jobs">--</span>
+                                            <strong>Uptime:</strong> <span id="scheduler-uptime">--</span>
                                         </div>
                                         <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
-                                            <strong>Last Collection:</strong> <span id="scheduler-last-run">--</span>
+                                            <strong>Total Executions:</strong> <span id="scheduler-executions">--</span>
                                         </div>
-                                        <div style="font-size: 0.9em; color: #666;">
-                                            <strong>Next Collection:</strong> <span id="scheduler-next-run">--</span>
+                                        <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
+                                            <strong>Total Errors:</strong> <span id="scheduler-errors">--</span>
+                                        </div>
+                                        <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
+                                            <strong>Last Execution:</strong> <span id="scheduler-last-execution">--</span>
+                                        </div>
+                                        <div id="scheduler-error-details" style="display: none; margin-top: 10px; padding: 8px; background: #fee; border-left: 3px solid #ef4444; border-radius: 4px;">
+                                            <div style="font-size: 0.85em; color: #ef4444; font-weight: 600; margin-bottom: 3px;">Last Error:</div>
+                                            <div id="scheduler-last-error" style="font-size: 0.8em; color: #666; word-break: break-word;"></div>
+                                            <div id="scheduler-last-error-time" style="font-size: 0.75em; color: #999; margin-top: 3px;"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -2819,7 +2889,7 @@
 
     <!-- Alert Configuration Modal -->
     <div id="alertConfigModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff5f0 100%); border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <h2 id="alertConfigModalTitle" style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Create Alert</h2>
                 <span class="close" onclick="closeAlertConfigModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
@@ -2838,14 +2908,14 @@
             <div style="margin-bottom: 20px;">
                 <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Metric Type</label>
                 <select id="alertConfigMetricType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
-                    <option value="throughput_in">Throughput (Inbound)</option>
-                    <option value="throughput_out">Throughput (Outbound)</option>
-                    <option value="throughput_total">Throughput (Total)</option>
-                    <option value="cpu">CPU Usage</option>
-                    <option value="memory">Memory Usage</option>
-                    <option value="sessions">Active Sessions</option>
-                    <option value="threats_critical">Critical Threats</option>
-                    <option value="interface_errors">Interface Errors</option>
+                    <option value="throughput_in">Inbound Throughput (Mbps)</option>
+                    <option value="throughput_out">Outbound Throughput (Mbps)</option>
+                    <option value="throughput_total">Total Throughput (Mbps)</option>
+                    <option value="cpu">Data Plane CPU Usage (Percentage %)</option>
+                    <option value="memory">System Memory Usage (Percentage %)</option>
+                    <option value="sessions">Active Sessions (Count)</option>
+                    <option value="threats_critical">Critical Threats (Count)</option>
+                    <option value="interface_errors">Interface Errors (Count)</option>
                 </select>
             </div>
 
@@ -2902,7 +2972,7 @@
 
     <!-- Template Details Modal -->
     <div id="templateDetailsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff8f5 100%); border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Template Details</h2>
                 <span class="close" onclick="closeTemplateDetailsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
@@ -2916,7 +2986,7 @@
 
     <!-- Apply Template Modal -->
     <div id="applyTemplateModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #ffede0 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Apply Alert Template</h2>
                 <span class="close" onclick="closeApplyTemplateModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
@@ -2950,7 +3020,7 @@
 
     <!-- Apply Quick Start Modal -->
     <div id="applyQuickStartModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #ffe8d5 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Apply Quick Start Scenario</h2>
                 <span class="close" onclick="closeApplyQuickStartModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
@@ -2978,7 +3048,7 @@
 
     <!-- Templates Browser Modal -->
     <div id="templatesBrowserModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff5ed 100%); border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <div>
                     <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.6em;">Browse Alert Templates</h2>
@@ -2993,7 +3063,7 @@
 
     <!-- Quick Start Browser Modal -->
     <div id="quickStartBrowserModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff0e5 100%); border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <div>
                     <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.6em;">Quick Start Scenarios</h2>
@@ -3008,7 +3078,7 @@
 
     <!-- Alert History Modal -->
     <div id="alertHistoryModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fffaf5 100%); border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                 <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">Alert History</h2>
                 <span class="close" onclick="closeAlertHistoryModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
@@ -3022,6 +3092,73 @@
             </div>
 
             <div id="alertHistoryTableModal" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- Active Alerts Modal -->
+    <div id="activeAlertsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff5f0 100%); border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">Active Alerts</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="resolveAllActiveAlerts()" style="padding: 8px 16px; background: linear-gradient(135deg, #28a745 0%, #218838 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); font-weight: 600; font-size: 0.9em; transition: all 0.2s; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(40, 167, 69, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(40, 167, 69, 0.3)'">Resolve All</button>
+                    <span class="close" onclick="closeActiveAlertsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+                </div>
+            </div>
+            <div id="activeAlertsTable" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- INFO Alerts Modal -->
+    <div id="infoAlertsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(23, 162, 184, 0.3); border-top: 4px solid #17a2b8;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #17a2b8; padding-bottom: 15px;">
+                <h2 style="color: #17a2b8; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">ℹ️ INFO Alerts</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="acknowledgeAllInfoAlerts()" style="padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); font-weight: 600; font-size: 0.9em;">Acknowledge All</button>
+                    <span class="close" onclick="closeInfoAlertsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+                </div>
+            </div>
+            <div id="infoAlertsTable" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- WARNING Alerts Modal -->
+    <div id="warningAlertsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(255, 193, 7, 0.3); border-top: 4px solid #ffc107;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #ffc107; padding-bottom: 15px;">
+                <h2 style="color: #ffc107; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">⚠️ WARNING Alerts</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="acknowledgeAllWarningAlerts()" style="padding: 8px 16px; background: #ffc107; color: #1a1a1a; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); font-weight: 600; font-size: 0.9em;">Acknowledge All</button>
+                    <span class="close" onclick="closeWarningAlertsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+                </div>
+            </div>
+            <div id="warningAlertsTable" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- CRITICAL Alerts Modal -->
+    <div id="criticalAlertsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(220, 53, 69, 0.3); border-top: 4px solid #dc3545;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #dc3545; padding-bottom: 15px;">
+                <h2 style="color: #dc3545; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">🚨 CRITICAL Alerts</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="acknowledgeAllCriticalAlerts()" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); font-weight: 600; font-size: 0.9em;">Acknowledge All</button>
+                    <span class="close" onclick="closeCriticalAlertsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+                </div>
+            </div>
+            <div id="criticalAlertsTable" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- Alert History Modal (Last 50 Alerts - All Severities) -->
+    <div id="alertHistoryFullModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #6c757d; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">📜 Alert History (Last 50)</h2>
+                <span class="close" onclick="closeAlertHistoryFullModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+            <div id="alertHistoryFullTable" style="font-family: var(--font-secondary);"></div>
         </div>
     </div>
 
@@ -3039,6 +3176,6 @@
     <script src="/static/pages-alerts.js?v=1.10.2"></script>
     <script src="/static/settings.js?v=1.9.0"></script>
     <script src="/static/devices.js?v=1.8.4"></script>
-    <script src="/static/app.js?v=1.9.5"></script>
+    <script src="/static/app.js?v=1.10.7"></script>
 </body>
 </html>

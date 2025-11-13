@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 10
-VERSION_PATCH = 0
+VERSION_PATCH = 7
 
 # Build metadata (optional)
-VERSION_BUILD = "20251111"  # YYYYMMDD format
+VERSION_BUILD = "20251113"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Production Architecture"
+VERSION_CODENAME = "Graph Stability"
 
 
 def get_version():
@@ -75,6 +75,108 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.10.7',
+        'codename': 'Graph Stability',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '🐛 CRITICAL FIX: Resolved duplicate timestamp detection causing null data gaps in graph',
+            'FIXED: Simplified deduplication from complex ISO timestamp tracking to last-point comparison',
+            'FIXED: Chart now correctly accepts new data points with different timestamps',
+            'FIXED: Removed over-aggressive duplicate rejection that blocked legitimate data',
+            'IMPROVED: Deduplication now matches Application page logic (simple and reliable)',
+            'REMOVED: Complex timestamps[] tracking array (unnecessary overhead)',
+            'PERFORMANCE: Reduced memory footprint by removing timestamp history tracking',
+            'UI: Silent duplicate skipping during API polling (no console warnings)',
+            'Modified files: app.js (lines 11, 236-240, 249, 773, 799, 1025, 1042, 1429)',
+            'Modified files: index.html (version bump to v=1.10.7)'
+        ]
+    },
+    {
+        'version': '1.10.6',
+        'codename': 'Graph Stability',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            'ATTEMPTED FIX: Added ISO timestamp tracking for deduplication (too complex)',
+            'ISSUE: Approach created unnecessary complexity and memory overhead',
+            'SUPERSEDED: Replaced by v1.10.7 simplified approach'
+        ]
+    },
+    {
+        'version': '1.10.5',
+        'codename': 'Database Integrity',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '🛡️ CRITICAL FIX: Eliminated duplicate timestamp entries in database',
+            'DATABASE: Added UNIQUE constraint on throughput_samples(device_id, timestamp)',
+            'DATABASE: Changed INSERT to INSERT OR IGNORE for graceful duplicate handling',
+            'RACE CONDITION: Added 2-second delay before scheduler start in clock.py',
+            'FRONTEND: Added 4th layer duplicate detection in updateChart()',
+            'MULTI-LAYERED DEFENSE: 4 layers preventing duplicates (DB, delay, OR IGNORE, frontend)',
+            'Modified files: throughput_storage.py (UNIQUE index)',
+            'Modified files: clock.py (2-second startup delay)',
+            'Modified files: app.js (frontend deduplication check)'
+        ]
+    },
+    {
+        'version': '1.10.4',
+        'codename': 'Time Format Consistency',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '🐛 FIXED: Mixed 12-hour/24-hour time format in throughput graph',
+            'FIXED: Inconsistent timestamp formatting in preloadChartData()',
+            'IMPROVED: All timestamps now use explicit 24-hour format (hour12: false)',
+            'CONSISTENCY: Graph labels now match across all data loading paths',
+            'Modified files: app.js (line 783 - preloadChartData timestamp formatting)'
+        ]
+    },
+    {
+        'version': '1.10.3',
+        'codename': 'Code Cleanup',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '🧹 CLEANUP: Removed orphaned updateTopCategory() function from app.js',
+            'FIXED: Console error "Element cyberHealthTopCategory not found"',
+            'REMOVED: Lines 1896-1955 in app.js (leftover from split view refactoring)',
+            'Modified files: app.js (deleted orphaned function)'
+        ]
+    },
+    {
+        'version': '1.10.2',
+        'codename': 'Startup Optimization',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '⚡ PERFORMANCE: Eliminated 60-second startup delay for data population',
+            'IMPROVED: clock.py now runs initial collections immediately before starting scheduler',
+            'IMPROVED: Dashboard shows data within 2 seconds of container start',
+            'ARCHITECTURE: Initial throughput and connected devices collection on startup',
+            'ARCHITECTURE: Scheduler waits 2 seconds after initial collections to avoid race condition',
+            'USER EXPERIENCE: Instant data availability on page load',
+            'Modified files: clock.py (lines 571-598 - immediate initial collections)'
+        ]
+    },
+    {
+        'version': '1.10.1',
+        'codename': 'Timestamp Fixes',
+        'date': '2025-11-13',
+        'type': 'patch',
+        'changes': [
+            '🐛 FIXED: Missing timestamp fields in API error responses',
+            'FIXED: "No timestamp in data" JavaScript errors causing graph resets',
+            'FIXED: Zero-value entries appearing in graph',
+            'API: Added timestamp to collector-not-initialized response (routes_throughput.py:67)',
+            'API: Added timestamp to no-recent-data response (routes_throughput.py:166)',
+            'API: Added timestamp to exception handler response (routes_throughput.py:228)',
+            'CONSISTENCY: All API responses now include valid timestamp field',
+            'Modified files: routes_throughput.py (3 locations)'
+        ]
+    },
     {
         'version': '1.10.0',
         'codename': 'Production Architecture',

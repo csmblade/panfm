@@ -10,6 +10,140 @@ from firewall_api_logs import get_traffic_logs
 from firewall_api_devices import get_dhcp_leases, get_connected_devices
 
 
+def is_private_ip(ip):
+    """
+    Check if an IP address is a private (RFC 1918) address.
+
+    Args:
+        ip: IP address string (e.g., "192.168.1.1")
+
+    Returns:
+        bool: True if IP is private, False otherwise
+    """
+    if not ip or ip == 'N/A' or ip == '':
+        return False
+
+    try:
+        parts = ip.split('.')
+        if len(parts) != 4:
+            return False
+
+        first = int(parts[0])
+        second = int(parts[1])
+
+        # 10.0.0.0/8 (Class A private network)
+        if first == 10:
+            return True
+
+        # 172.16.0.0/12 (Class B private network)
+        if first == 172 and 16 <= second <= 31:
+            return True
+
+        # 192.168.0.0/16 (Class C private network)
+        if first == 192 and second == 168:
+            return True
+
+        # Loopback 127.0.0.0/8
+        if first == 127:
+            return True
+
+        # Link-local 169.254.0.0/16
+        if first == 169 and second == 254:
+            return True
+
+        return False
+    except (ValueError, IndexError):
+        return False
+
+
+def classify_traffic_direction(sources, destinations, zones, category):
+    """
+    Classify traffic direction as local, internet, mixed, or unknown.
+
+    Uses multiple signals in priority order:
+    1. Security zones (trust→untrust = internet, trust→trust = local)
+    2. IP address analysis (RFC 1918 detection)
+    3. Firewall category (fallback if zones/IPs inconclusive)
+
+    Args:
+        sources: List of source dicts with 'ip' key
+        destinations: List of destination dicts with 'ip' key
+        zones: List of zone strings (e.g., ["trust", "untrust"])
+        category: Application category from firewall (e.g., "private-ip-addresses")
+
+    Returns:
+        str: "internet", "local", "mixed", or "unknown"
+    """
+    # Strategy 1: Use security zones if available
+    if zones and len(zones) > 0:
+        zone_set = set(z.lower() for z in zones if z)
+
+        # Check for typical zone patterns
+        has_untrust = 'untrust' in zone_set or 'internet' in zone_set or 'external' in zone_set
+        has_trust_only = 'trust' in zone_set and len(zone_set) == 1
+
+        if has_untrust:
+            # Traffic involving untrust zone = internet traffic
+            return 'internet'
+        elif has_trust_only:
+            # Traffic entirely within trust zone = local traffic
+            return 'local'
+        elif len(zone_set) > 1:
+            # Multiple zones (not just untrust) = mixed
+            return 'mixed'
+
+    # Strategy 2: Analyze source and destination IPs
+    if sources or destinations:
+        has_private_src = False
+        has_public_src = False
+        has_private_dst = False
+        has_public_dst = False
+
+        # Check sources
+        for src in sources:
+            src_ip = src.get('ip', '')
+            if src_ip and src_ip != 'N/A':
+                if is_private_ip(src_ip):
+                    has_private_src = True
+                else:
+                    has_public_src = True
+
+        # Check destinations
+        for dst in destinations:
+            dst_ip = dst.get('ip', '')
+            if dst_ip and dst_ip != 'N/A':
+                if is_private_ip(dst_ip):
+                    has_private_dst = True
+                else:
+                    has_public_dst = True
+
+        # Classify based on IP analysis
+        if has_public_dst or has_public_src:
+            # Any public IP involvement = internet traffic
+            if has_private_src or has_private_dst:
+                # Mix of public and private = mixed (less common)
+                return 'internet'  # Treat as internet since it touches public IPs
+            else:
+                return 'internet'
+        elif has_private_src and has_private_dst:
+            # All IPs are private = local traffic
+            return 'local'
+        elif has_private_src or has_private_dst:
+            # Only one side analyzed and it's private
+            return 'local'
+
+    # Strategy 3: Use firewall category as fallback
+    if category:
+        cat_lower = category.lower()
+        if 'private-ip' in cat_lower or 'internal' in cat_lower or 'local' in cat_lower:
+            return 'local'
+        elif 'internet' in cat_lower or 'cloud' in cat_lower or 'web' in cat_lower:
+            return 'internet'
+
+    # Unable to determine
+    return 'unknown'
+
+
 def get_top_applications(firewall_config, top_count=5):
     """Fetch top applications from traffic logs
 
@@ -306,6 +440,14 @@ def get_application_statistics(firewall_config, max_logs=5000):
             # Sort destinations by bytes descending
             dest_list.sort(key=lambda x: x['bytes'], reverse=True)
 
+            # Classify traffic direction using multiple signals
+            traffic_direction = classify_traffic_direction(
+                sources=source_list,
+                destinations=dest_list,
+                zones=list(stats['zones']),
+                category=stats['category']
+            )
+
             result.append({
                 'name': app_name,
                 'category': stats['category'],
@@ -322,7 +464,8 @@ def get_application_statistics(firewall_config, max_logs=5000):
                 'protocols': list(stats['protocols']),
                 'ports': list(stats['ports'])[:20],  # Limit to 20
                 'vlans': list(stats['vlans']),
-                'zones': list(stats['zones'])
+                'zones': list(stats['zones']),
+                'traffic_direction': traffic_direction  # NEW: local, internet, mixed, or unknown
             })
 
         # Sort by bytes (volume) descending by default
@@ -332,22 +475,60 @@ def get_application_statistics(firewall_config, max_logs=5000):
 
         # Aggregate bytes by category for alerting
         category_stats = {}
+        category_stats_lan = {}  # Local LAN only
+        category_stats_internet = {}  # Internet only
+
         for app in result:
             category = app.get('category', 'unknown')
+            traffic_dir = app.get('traffic_direction', 'unknown')
+
+            # Overall category stats (for backward compatibility)
             if category not in category_stats:
                 category_stats[category] = {
                     'bytes': 0,
-                    'sessions': 0
+                    'sessions': 0,
+                    'bytes_sent': 0,
+                    'bytes_received': 0
                 }
             category_stats[category]['bytes'] += app['bytes']
             category_stats[category]['sessions'] += app['sessions']
+            category_stats[category]['bytes_sent'] += app['bytes_sent']
+            category_stats[category]['bytes_received'] += app['bytes_received']
 
-        debug(f"Aggregated {len(category_stats)} unique categories")
+            # Split by traffic direction
+            if traffic_dir == 'local':
+                if category not in category_stats_lan:
+                    category_stats_lan[category] = {
+                        'bytes': 0,
+                        'sessions': 0,
+                        'bytes_sent': 0,
+                        'bytes_received': 0
+                    }
+                category_stats_lan[category]['bytes'] += app['bytes']
+                category_stats_lan[category]['sessions'] += app['sessions']
+                category_stats_lan[category]['bytes_sent'] += app['bytes_sent']
+                category_stats_lan[category]['bytes_received'] += app['bytes_received']
+            elif traffic_dir == 'internet':
+                if category not in category_stats_internet:
+                    category_stats_internet[category] = {
+                        'bytes': 0,
+                        'sessions': 0,
+                        'bytes_sent': 0,
+                        'bytes_received': 0
+                    }
+                category_stats_internet[category]['bytes'] += app['bytes']
+                category_stats_internet[category]['sessions'] += app['sessions']
+                category_stats_internet[category]['bytes_sent'] += app['bytes_sent']
+                category_stats_internet[category]['bytes_received'] += app['bytes_received']
+
+        debug(f"Aggregated {len(category_stats)} unique categories (overall), {len(category_stats_lan)} LAN, {len(category_stats_internet)} Internet")
 
         # Return both applications list, category stats, and summary statistics
         return {
             'applications': result,
             'categories': category_stats,
+            'categories_lan': category_stats_lan,
+            'categories_internet': category_stats_internet,
             'summary': {
                 'total_applications': len(result),
                 'total_sessions': total_sessions,

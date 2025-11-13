@@ -45,6 +45,9 @@ window.currentMediumLogs = [];
 window.currentBlockedUrlLogs = [];
 window.currentTopApps = [];
 
+// Global metadata cache for device enrichment (dashboard use)
+window.deviceMetadataCache = {};
+
 // Mini chart instances
 let sessionChart = null;
 let tcpChart = null;
@@ -203,7 +206,19 @@ function calculateAverage(dataArray) {
 
 // Update the chart with new data
 function updateChart(data) {
+    // Validate timestamp exists
+    if (!data.timestamp) {
+        console.warn('No timestamp in data, skipping chart update');
+        return;
+    }
+
     const timestamp = new Date(data.timestamp);
+
+    // Check if date is valid
+    if (isNaN(timestamp.getTime())) {
+        console.warn('Invalid timestamp in data:', data.timestamp);
+        return;
+    }
 
     // Get user's timezone preference (default to UTC if not set)
     const userTz = window.userTimezone || 'UTC';
@@ -216,6 +231,13 @@ function updateChart(data) {
         second: '2-digit',
         hour12: false
     });
+
+    // Deduplicate: Skip if the last data point has the same timestamp
+    // Simple check: if the most recent label matches, it's the same data point
+    if (chartData.labels.length > 0 && chartData.labels[chartData.labels.length - 1] === timeLabel) {
+        // Same data point being returned by API - skip silently (normal during polling)
+        return;
+    }
 
     // Add new data (backend already returns Mbps rates)
     chartData.labels.push(timeLabel);
@@ -284,28 +306,22 @@ function updateStats(data) {
             historicalData.icmp.shift();
         }
 
-        document.getElementById('sessionValue').innerHTML = data.sessions.active.toLocaleString() + calculateTrend(historicalData.sessions);
-        document.getElementById('tcpValue').innerHTML = data.sessions.tcp.toLocaleString() + calculateTrend(historicalData.tcp);
-        document.getElementById('udpValue').innerHTML = data.sessions.udp.toLocaleString() + calculateTrend(historicalData.udp);
-        document.getElementById('icmpValue').innerHTML = data.sessions.icmp.toLocaleString() + calculateTrend(historicalData.icmp);
-
+        // Session data is now displayed in Firewall Health tiles
+        // Old Network Traffic/Active Sessions section has been removed
         miniChartData.sessions.push(data.sessions.active);
         if (miniChartData.sessions.length > MAX_MINI_POINTS) {
             miniChartData.sessions.shift();
         }
-        updateMiniChart(sessionChart, miniChartData.sessions, '#ff6600');
 
         miniChartData.tcp.push(data.sessions.tcp);
         if (miniChartData.tcp.length > MAX_MINI_POINTS) {
             miniChartData.tcp.shift();
         }
-        updateMiniChart(tcpChart, miniChartData.tcp, '#3b82f6');
 
         miniChartData.udp.push(data.sessions.udp);
         if (miniChartData.udp.length > MAX_MINI_POINTS) {
             miniChartData.udp.shift();
         }
-        updateMiniChart(udpChart, miniChartData.udp, '#8b5cf6');
     }
 
     // Update CPU metrics and mini charts
@@ -317,28 +333,14 @@ function updateStats(data) {
             sidebarUptimeElement.textContent = data.cpu.uptime;
         }
 
-        // Update PPS display in Network Traffic tile
-        const totalPpsElement = document.getElementById('totalPps');
-        const inboundPpsElement = document.getElementById('inboundPps');
-        const outboundPpsElement = document.getElementById('outboundPps');
-
-        if (data.total_pps !== undefined && totalPpsElement) {
-            totalPpsElement.textContent = data.total_pps.toLocaleString();
-        }
-        if (data.inbound_pps !== undefined && inboundPpsElement) {
-            inboundPpsElement.textContent = data.inbound_pps.toLocaleString();
-        }
-        if (data.outbound_pps !== undefined && outboundPpsElement) {
-            outboundPpsElement.textContent = data.outbound_pps.toLocaleString();
-        }
-
-        // Update PPS mini chart
+        // PPS is now displayed in Firewall Health tiles
+        // Old Network Traffic section has been removed
+        // Keep miniChartData tracking for potential future use
         if (data.total_pps !== undefined) {
             miniChartData.pps.push(data.total_pps);
             if (miniChartData.pps.length > MAX_MINI_POINTS) {
                 miniChartData.pps.shift();
             }
-            updateMiniChart(ppsChart, miniChartData.pps, '#ffffff');
         }
 
     }
@@ -494,6 +496,13 @@ function updateStats(data) {
             licensedElement.style.color = '#FA582D';
         }
     }
+
+    // Update Firewall Health tiles
+    updateCyberHealth(data);
+
+    // Update active alerts count
+    // Note: updateTopCategory() is now handled within updateCyberHealth() as split view (LAN/Internet)
+    updateActiveAlertsCount();
 }
 
 function updateThreatLogs(elementId, logs, borderColor) {
@@ -778,8 +787,16 @@ async function preloadChartData() {
 
             // Populate main chart data arrays
             mainChartSamples.forEach(sample => {
-                const timestamp = new Date(sample.timestamp).toLocaleTimeString();
-                chartData.labels.push(timestamp);
+                const userTz = window.userTimezone || 'UTC';
+                const timestamp = new Date(sample.timestamp);
+                const timeLabel = timestamp.toLocaleTimeString('en-US', {
+                    timeZone: userTz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                chartData.labels.push(timeLabel);
                 chartData.inbound.push(sample.inbound_mbps || 0);
                 chartData.outbound.push(sample.outbound_mbps || 0);
                 chartData.total.push(sample.total_mbps || 0);
@@ -823,6 +840,38 @@ async function preloadChartData() {
     }
 }
 
+/**
+ * Load device metadata cache for dashboard use
+ * This populates the global metadata cache so dashboard can show custom names
+ */
+async function loadDeviceMetadataCache() {
+    try {
+        console.log('Loading device metadata cache for dashboard...');
+        const response = await fetch('/api/device-metadata');
+
+        if (!response.ok) {
+            console.warn('Failed to load device metadata:', response.status);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.metadata) {
+            // Store metadata in global cache, keyed by MAC address (normalized to lowercase)
+            window.deviceMetadataCache = {};
+            Object.keys(data.metadata).forEach(mac => {
+                const normalizedMac = mac.toLowerCase();
+                window.deviceMetadataCache[normalizedMac] = data.metadata[mac];
+            });
+
+            console.log(`Loaded metadata for ${Object.keys(window.deviceMetadataCache).length} devices`);
+        }
+    } catch (error) {
+        console.error('Error loading device metadata cache:', error);
+        // Continue without metadata if it fails
+    }
+}
+
 // Initialize the application
 let isInitialized = false;
 async function init() {
@@ -842,6 +891,9 @@ async function init() {
         await loadDevices();
         console.log('Devices loaded on initialization');
     }
+
+    // Load device metadata cache for dashboard use
+    await loadDeviceMetadataCache();
 
     // Initialize mini charts (destroy existing ones first to avoid "Canvas already in use" error)
     if (sessionChart) sessionChart.destroy();
@@ -1585,7 +1637,24 @@ function refreshAllDataForDevice() {
         topAppsContainer.innerHTML = '<div style="color: #ffffff; text-align: center; padding: 10px;">Loading...</div>';
     }
 
-    console.log('Threat logs and app displays cleared');
+    // Reset Firewall Health tiles (9 metrics: CPU, Memory, PPS, Sessions, Top Category (LAN/Internet split), Top Internal/Internet Clients, Active Alerts)
+    const cyberHealthIds = [
+        'cyberHealthCpu', 'cyberHealthMemory', 'cyberHealthPps', 'cyberHealthSessions',
+        'cyberHealthTopCategoryLAN', 'cyberHealthTopCategoryLANSent', 'cyberHealthTopCategoryLANReceived',
+        'cyberHealthTopCategoryInternet', 'cyberHealthTopCategoryInternetSent', 'cyberHealthTopCategoryInternetReceived',
+        'cyberHealthTopInternalIp', 'cyberHealthTopInternalHostname', 'cyberHealthTopInternalSent', 'cyberHealthTopInternalReceived',
+        'cyberHealthTopInternetIp', 'cyberHealthTopInternetHostname', 'cyberHealthTopInternetSent', 'cyberHealthTopInternetReceived',
+        'cyberHealthActiveAlerts'
+    ];
+
+    cyberHealthIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
+        }
+    });
+
+    console.log('Threat logs, app displays, and Firewall Health tiles cleared');
 
     // ========================================================================
     // 7. REFRESH ALL PAGE DATA
@@ -1680,6 +1749,222 @@ function refreshAllDataForDevice() {
     }
 
     console.log('=== refreshAllDataForDevice complete ===');
+}
+
+/**
+ * Update Firewall Health status board tiles
+ *
+ * @param {Object} data - Throughput data from /api/throughput endpoint
+ */
+function updateCyberHealth(data) {
+    // Tile 1: Data Plane CPU
+    const cpuElement = document.getElementById('cyberHealthCpu');
+    if (cpuElement && data.cpu && data.cpu.data_plane_cpu !== undefined) {
+        cpuElement.textContent = data.cpu.data_plane_cpu + '%';
+    }
+
+    // Tile 2: System Memory
+    const memoryElement = document.getElementById('cyberHealthMemory');
+    if (memoryElement && data.cpu && data.cpu.memory_used_pct !== undefined) {
+        memoryElement.textContent = data.cpu.memory_used_pct + '%';
+    }
+
+    // Tile 3: PPS (Packets Per Second)
+    const ppsElement = document.getElementById('cyberHealthPps');
+    if (ppsElement && data.total_pps !== undefined) {
+        ppsElement.textContent = data.total_pps.toLocaleString();
+    }
+
+    // Tile 4: Active Sessions
+    const sessionsElement = document.getElementById('cyberHealthSessions');
+    if (sessionsElement && data.sessions && data.sessions.active !== undefined) {
+        sessionsElement.textContent = data.sessions.active.toLocaleString();
+    }
+
+    // Tile 5: Top Category (Local LAN and Internet split view)
+    // Update Top Local LAN Category
+    if (data.top_category_lan && data.top_category_lan.category) {
+        const lanCategory = data.top_category_lan;
+        const lanCategoryElement = document.getElementById('cyberHealthTopCategoryLAN');
+        const lanSentElement = document.getElementById('cyberHealthTopCategoryLANSent');
+        const lanReceivedElement = document.getElementById('cyberHealthTopCategoryLANReceived');
+
+        if (lanCategoryElement) {
+            lanCategoryElement.textContent = lanCategory.category;
+        }
+
+        if (lanSentElement) {
+            lanSentElement.textContent = formatBytes(lanCategory.bytes_sent || 0);
+        }
+
+        if (lanReceivedElement) {
+            lanReceivedElement.textContent = formatBytes(lanCategory.bytes_received || 0);
+        }
+    } else {
+        const lanCategoryElement = document.getElementById('cyberHealthTopCategoryLAN');
+        const lanSentElement = document.getElementById('cyberHealthTopCategoryLANSent');
+        const lanReceivedElement = document.getElementById('cyberHealthTopCategoryLANReceived');
+        if (lanCategoryElement) lanCategoryElement.textContent = '-';
+        if (lanSentElement) lanSentElement.textContent = '--';
+        if (lanReceivedElement) lanReceivedElement.textContent = '--';
+    }
+
+    // Update Top Internet Category
+    if (data.top_category_internet && data.top_category_internet.category) {
+        const internetCategory = data.top_category_internet;
+        const internetCategoryElement = document.getElementById('cyberHealthTopCategoryInternet');
+        const internetSentElement = document.getElementById('cyberHealthTopCategoryInternetSent');
+        const internetReceivedElement = document.getElementById('cyberHealthTopCategoryInternetReceived');
+
+        if (internetCategoryElement) {
+            internetCategoryElement.textContent = internetCategory.category;
+        }
+
+        if (internetSentElement) {
+            internetSentElement.textContent = formatBytes(internetCategory.bytes_sent || 0);
+        }
+
+        if (internetReceivedElement) {
+            internetReceivedElement.textContent = formatBytes(internetCategory.bytes_received || 0);
+        }
+    } else {
+        // DEBUG: Log what we received
+        console.log('[DEBUG] Internet category data:', data.top_category_internet);
+        console.log('[DEBUG] All available categories:', data.categories ? Object.keys(data.categories) : 'no categories');
+
+        const internetCategoryElement = document.getElementById('cyberHealthTopCategoryInternet');
+        const internetSentElement = document.getElementById('cyberHealthTopCategoryInternetSent');
+        const internetReceivedElement = document.getElementById('cyberHealthTopCategoryInternetReceived');
+        if (internetCategoryElement) internetCategoryElement.textContent = '-';
+        if (internetSentElement) internetSentElement.textContent = '--';
+        if (internetReceivedElement) internetReceivedElement.textContent = '--';
+    }
+
+    // Tile 6: Top Internal and Internet Clients (split view)
+
+    // Update Top Internal Client
+    if (data.top_internal_client && data.top_internal_client.ip) {
+        const internal = data.top_internal_client;
+        const internalIp = document.getElementById('cyberHealthTopInternalIp');
+        const internalHostname = document.getElementById('cyberHealthTopInternalHostname');
+        const internalSent = document.getElementById('cyberHealthTopInternalSent');
+        const internalReceived = document.getElementById('cyberHealthTopInternalReceived');
+
+        if (internalIp) {
+            internalIp.textContent = internal.ip;
+        }
+
+        if (internalHostname) {
+            // Prefer custom_name, fallback to hostname
+            const displayName = internal.custom_name || internal.hostname || 'Unknown';
+            internalHostname.textContent = displayName;
+        }
+
+        if (internalSent) {
+            internalSent.textContent = formatBytes(internal.bytes_sent || 0);
+        }
+
+        if (internalReceived) {
+            internalReceived.textContent = formatBytes(internal.bytes_received || 0);
+        }
+    } else {
+        document.getElementById('cyberHealthTopInternalIp').textContent = 'N/A';
+        document.getElementById('cyberHealthTopInternalHostname').textContent = '--';
+        document.getElementById('cyberHealthTopInternalSent').textContent = '--';
+        document.getElementById('cyberHealthTopInternalReceived').textContent = '--';
+    }
+
+    // Update Top Internet Client
+    if (data.top_internet_client && data.top_internet_client.ip) {
+        const internet = data.top_internet_client;
+        const internetIp = document.getElementById('cyberHealthTopInternetIp');
+        const internetHostname = document.getElementById('cyberHealthTopInternetHostname');
+        const internetSent = document.getElementById('cyberHealthTopInternetSent');
+        const internetReceived = document.getElementById('cyberHealthTopInternetReceived');
+
+        if (internetIp) {
+            internetIp.textContent = internet.ip;
+        }
+
+        if (internetHostname) {
+            // Prefer custom_name, fallback to hostname
+            const displayName = internet.custom_name || internet.hostname || 'Unknown';
+            internetHostname.textContent = displayName;
+        }
+
+        if (internetSent) {
+            internetSent.textContent = formatBytes(internet.bytes_sent || 0);
+        }
+
+        if (internetReceived) {
+            internetReceived.textContent = formatBytes(internet.bytes_received || 0);
+        }
+    } else {
+        document.getElementById('cyberHealthTopInternetIp').textContent = 'N/A';
+        document.getElementById('cyberHealthTopInternetHostname').textContent = '--';
+        document.getElementById('cyberHealthTopInternetSent').textContent = '--';
+        document.getElementById('cyberHealthTopInternetReceived').textContent = '--';
+    }
+
+}
+
+/**
+ * Update active alerts count in Firewall Health bar
+ * Fetches alert statistics and displays count of triggered/active alerts
+ * Color codes by severity: Red (critical), Orange (warning), Blue (info), Green (none)
+ */
+function updateActiveAlertsCount() {
+    const activeAlertsElement = document.getElementById('cyberHealthActiveAlerts');
+    if (!activeAlertsElement) {
+        console.warn('updateActiveAlertsCount: Element cyberHealthActiveAlerts not found');
+        return;
+    }
+
+    fetch('/api/alerts/stats')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('updateActiveAlertsCount: Received response', data);
+
+            // API returns data.data (not data.stats)
+            if (data && data.status === 'success' && data.data) {
+                const stats = data.data;
+
+                // Active alerts = unacknowledged alerts (critical + warning + info)
+                const criticalCount = stats.critical_alerts || 0;
+                const warningCount = stats.warning_alerts || 0;
+                const infoCount = stats.info_alerts || 0;
+                const totalActive = criticalCount + warningCount + infoCount;
+
+                console.log(`updateActiveAlertsCount: Critical=${criticalCount}, Warning=${warningCount}, Info=${infoCount}, Total=${totalActive}`);
+
+                activeAlertsElement.textContent = totalActive;
+
+                // Color code by highest severity
+                if (criticalCount > 0) {
+                    activeAlertsElement.style.color = '#DC3545'; // Red for critical
+                } else if (warningCount > 0) {
+                    activeAlertsElement.style.color = '#FA582D'; // Orange for warning
+                } else if (infoCount > 0) {
+                    activeAlertsElement.style.color = '#17A2B8'; // Blue for info
+                } else {
+                    activeAlertsElement.style.color = '#4CAF50'; // Green for no alerts
+                }
+            } else {
+                console.warn('updateActiveAlertsCount: Invalid response structure', data);
+                activeAlertsElement.textContent = '-';
+                activeAlertsElement.style.color = '';
+            }
+        })
+        .catch(error => {
+            console.error('updateActiveAlertsCount: Error fetching alert stats:', error);
+            activeAlertsElement.textContent = '-';
+            activeAlertsElement.style.color = '';
+        });
 }
 
 // Note: Modal functions (showCriticalThreatsModal, showMediumThreatsModal, showBlockedUrlsModal, showTopAppsModal)

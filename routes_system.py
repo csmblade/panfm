@@ -65,55 +65,112 @@ def register_system_routes(app, csrf, limiter):
                 'device_stats': []
             }
 
-            # Get APScheduler status
-            # Import global scheduler and stats from app.py
-            from app import scheduler, scheduler_stats
+            # Get APScheduler status (now runs in separate clock.py process)
+            # First try direct stats from database (Priority 2)
+            collector = get_collector()
+            settings = load_settings()
+            refresh_interval = settings.get('refresh_interval', 60)
 
-            if scheduler is not None:
-                result['scheduler']['state'] = 'Running' if scheduler.running else 'Stopped'
-                result['scheduler']['jobs_count'] = len(scheduler.get_jobs())
+            if collector is not None:
+                storage = collector.storage
 
-                # Add scheduler execution statistics
-                result['scheduler']['total_executions'] = scheduler_stats['total_executions']
-                result['scheduler']['total_errors'] = scheduler_stats['total_errors']
-                result['scheduler']['last_execution'] = scheduler_stats['last_execution']
-                result['scheduler']['last_error'] = scheduler_stats['last_error']
-                result['scheduler']['last_error_time'] = scheduler_stats['last_error_time']
-                result['scheduler']['execution_history'] = scheduler_stats['execution_history']
+                # Try to get direct scheduler stats from database
+                scheduler_stats = storage.get_latest_scheduler_stats()
 
-                # Get job details
-                jobs = scheduler.get_jobs()
-                for job in jobs:
-                    job_info = {
-                        'id': job.id,
-                        'name': job.name,
-                        'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
-                        'trigger': str(job.trigger)
-                    }
-                    result['jobs'].append(job_info)
+                if scheduler_stats:
+                    # Direct stats available from clock process!
+                    result['scheduler']['state'] = scheduler_stats['state'].title()
+                    result['scheduler']['total_executions'] = scheduler_stats['total_executions']
+                    result['scheduler']['total_errors'] = scheduler_stats['total_errors']
+                    result['scheduler']['last_execution'] = scheduler_stats['last_execution']
+                    result['scheduler']['last_error'] = scheduler_stats['last_error']
+                    result['scheduler']['last_error_time'] = scheduler_stats['last_error_time']
+                    result['scheduler']['uptime_seconds'] = scheduler_stats['uptime_seconds']
+                    result['scheduler']['execution_history'] = scheduler_stats['execution_history']
+                    result['scheduler']['next_collection'] = f"Every {refresh_interval}s"
+                    result['scheduler']['data_source'] = 'direct'  # Indicate we have direct stats
 
-                # Get last run time from storage (as fallback verification)
-                collector = get_collector()
-                if collector is not None:
-                    storage = collector.storage
-                    settings = load_settings()
+                    # Format uptime as human-readable
+                    uptime_seconds = scheduler_stats['uptime_seconds']
+                    hours = uptime_seconds // 3600
+                    minutes = (uptime_seconds % 3600) // 60
+                    result['scheduler']['uptime_formatted'] = f"{hours}h {minutes}m"
+                else:
+                    # Fall back to inference from database activity
                     device_id = settings.get('selected_device_id', '')
+                    max_age = refresh_interval * 2  # Allow some buffer
 
                     if device_id:
-                        latest_sample = storage.get_latest_sample(device_id, max_age_seconds=7200)  # 2 hours
+                        latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age)
                         if latest_sample:
-                            result['scheduler']['last_db_sample'] = latest_sample['timestamp']
+                            result['scheduler']['state'] = 'Running (Inferred)'
+                            result['scheduler']['last_collection'] = latest_sample['timestamp']
+                            result['scheduler']['next_collection'] = f"Every {refresh_interval}s"
                         else:
-                            result['scheduler']['last_db_sample'] = None
+                            result['scheduler']['state'] = 'No Recent Data'
+                            result['scheduler']['last_collection'] = 'None in last 2 minutes'
+                            result['scheduler']['next_collection'] = f"Expected every {refresh_interval}s"
                     else:
-                        result['scheduler']['last_db_sample'] = None
-                else:
-                    result['scheduler']['last_db_sample'] = None
+                        result['scheduler']['state'] = 'No Device Selected'
+                        result['scheduler']['last_collection'] = 'N/A'
+                        result['scheduler']['next_collection'] = f"Expected every {refresh_interval}s"
+
+                    result['scheduler']['data_source'] = 'inferred'  # Indicate we're inferring
+
+                # Add known job information from clock.py
+                # Include per-job stats if available
+                job_stats = scheduler_stats.get('jobs', {}) if scheduler_stats else {}
+
+                result['jobs'] = [
+                    {
+                        'id': 'throughput_collection',
+                        'name': 'Throughput Data Collection',
+                        'description': 'Collects firewall metrics (throughput, CPU, memory, sessions, logs, interfaces, applications)',
+                        'trigger': f'Every {refresh_interval} seconds',
+                        'status': 'Active in clock process',
+                        'data_collected': 'Throughput, system resources, sessions, threat stats, traffic logs, applications, licenses',
+                        'success_count': job_stats.get('throughput_collection', {}).get('success_count', 0),
+                        'error_count': job_stats.get('throughput_collection', {}).get('error_count', 0),
+                        'last_run': job_stats.get('throughput_collection', {}).get('last_run'),
+                        'last_error': job_stats.get('throughput_collection', {}).get('last_error')
+                    },
+                    {
+                        'id': 'connected_devices_collection',
+                        'name': 'Connected Devices Collection',
+                        'description': 'Collects ARP entries from firewall and stores in database with hostname/metadata enrichment',
+                        'trigger': f'Every {refresh_interval} seconds',
+                        'status': 'Active in clock process',
+                        'data_collected': 'IP addresses, MAC addresses, hostnames, VLANs, interfaces, zones, vendor info',
+                        'success_count': job_stats.get('connected_devices_collection', {}).get('success_count', 0),
+                        'error_count': job_stats.get('connected_devices_collection', {}).get('error_count', 0),
+                        'last_run': job_stats.get('connected_devices_collection', {}).get('last_run'),
+                        'last_error': job_stats.get('connected_devices_collection', {}).get('last_error')
+                    },
+                    {
+                        'id': 'database_cleanup',
+                        'name': 'Database Cleanup',
+                        'description': f'Removes data older than {settings.get("throughput_retention_days", 90)} days: throughput samples, traffic logs, system logs, resolved alerts, and expired alert cooldowns',
+                        'trigger': 'Daily at 02:00 UTC',
+                        'status': 'Active in clock process',
+                        'data_collected': 'N/A (maintenance job)',
+                        'success_count': job_stats.get('database_cleanup', {}).get('success_count', 0),
+                        'error_count': job_stats.get('database_cleanup', {}).get('error_count', 0),
+                        'last_run': job_stats.get('database_cleanup', {}).get('last_run'),
+                        'last_error': job_stats.get('database_cleanup', {}).get('last_error')
+                    },
+                    {
+                        'id': 'persist_scheduler_stats',
+                        'name': 'Scheduler Stats Persistence',
+                        'description': 'Writes scheduler statistics to database every 60 seconds for monitoring',
+                        'trigger': 'Every 60 seconds',
+                        'status': 'Active in clock process',
+                        'data_collected': 'Scheduler execution stats, job counts, errors'
+                    }
+                ]
             else:
-                result['scheduler']['state'] = 'Not Initialized'
-                result['scheduler']['jobs_count'] = 0
-                result['scheduler']['total_executions'] = 0
-                result['scheduler']['total_errors'] = 0
+                result['scheduler']['state'] = 'Collector Not Initialized'
+                result['scheduler']['last_collection'] = 'N/A'
+                result['scheduler']['next_collection'] = 'N/A'
 
             # Get Database status
             collector = get_collector()
